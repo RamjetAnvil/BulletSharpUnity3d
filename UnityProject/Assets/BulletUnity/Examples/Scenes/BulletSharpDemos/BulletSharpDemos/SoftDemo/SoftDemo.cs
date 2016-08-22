@@ -1,4 +1,4 @@
-﻿using BulletSharp;
+using BulletSharp;
 using BulletSharp.Math;
 using BulletSharp.SoftBody;
 using DemoFramework;

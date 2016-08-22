@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 using BulletUnity;
 using BulletUnity.Primitives;
 using BulletSharp;
@@ -34,18 +34,22 @@ public class BallThrowTest : MonoBehaviour
         ballRigidbody.gameObject.SetActive(false);
     }
 
+    void Start() {
+        bulletWorld._InitializePhysicsWorld();
+    }
+
     // Update is called once per frame
     void FixedUpdate()
     {
         if (Time.frameCount - startFrame == 50 && !simulationStarted)
         {
             ballRigidbody.gameObject.SetActive(true);
-            bulletWorld.AddRigidBody(ballRigidbody);
+            ballRigidbody.AddObjectToBulletWorld(bulletWorld);
             simulationStarted = true;
-            startFrame = BPhysicsWorld.Get().frameCount;
+            startFrame = bulletWorld.frameCount;
 
             //first simulation ==============================
-            ballPositionsOfflineSim = OfflineBallSimulation.SimulateBall(ballRigidbody, ballThrowImpulse, numberOfSimulationSteps,false);
+            ballPositionsOfflineSim = OfflineBallSimulation.SimulateBall(bulletWorld, ballRigidbody, ballThrowImpulse, numberOfSimulationSteps,false);
 
             //Second simulation =====================
             ballRigidbody.AddImpulse(ballThrowImpulse);

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using UnityEngine;
 using System.Collections;
 using BulletSharp;
@@ -15,28 +15,24 @@ namespace BulletUnity {
 
         //called by Physics World just before constraint is added to world.
         //the current constraint properties are used to rebuild the constraint.
-        internal override bool _BuildConstraint() {
+        internal override bool _BuildConstraint(BPhysicsWorld world) {
             if (m_constraintType == ConstraintType.constrainToPointInSpace)
             {
                 Debug.LogError("A FixedConstraint can only be constrained to another object.");
                 return false;
             }
-            BPhysicsWorld world = BPhysicsWorld.Get();
-            if (m_constraintPtr != null) {
-                if (m_isInWorld && world != null) {
-                    m_isInWorld = false;
-                    world.RemoveConstraint(m_constraintPtr);
-                }
-            }
+
+            RemoveFromBulletWorld();
+
             BRigidBody targetRigidBodyA = GetComponent<BRigidBody>();
             if (targetRigidBodyA == null)
             {
                 Debug.LogError("Fixed Constraint needs to be added to a component with a BRigidBody.");
                 return false;
             }
-            if (!targetRigidBodyA.isInWorld)
+            if (!targetRigidBodyA.IsInWorld)
             {
-                world.AddRigidBody(targetRigidBodyA);
+                targetRigidBodyA.AddObjectToBulletWorld(world);
             }
             RigidBody rba = (RigidBody) targetRigidBodyA.GetCollisionObject();
             if (rba == null) {
@@ -49,9 +45,9 @@ namespace BulletUnity {
                 Debug.LogError("Other rigid body is not set");
                 return false;
             }
-            if (!m_otherRigidBody.isInWorld)
+            if (!m_otherRigidBody.IsInWorld)
             {
-                world.AddRigidBody(m_otherRigidBody);
+                m_otherRigidBody.AddObjectToBulletWorld(world);
             }
             RigidBody rbb = (RigidBody) m_otherRigidBody.GetCollisionObject();
             if (rbb == null)

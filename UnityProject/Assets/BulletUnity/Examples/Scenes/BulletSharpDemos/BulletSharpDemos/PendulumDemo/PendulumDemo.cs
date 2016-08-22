@@ -1,4 +1,4 @@
-﻿#define PENDULUM_DAMPING
+#define PENDULUM_DAMPING
 
 using System;
 using BulletSharp;

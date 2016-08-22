@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 using System.Collections;
 using System.Collections.Generic;
 using BulletSharp;
@@ -15,16 +15,9 @@ namespace BulletUnity
             get { return (PairCachingGhostObject) m_collisionObject; }
         }
 
-        internal override bool _BuildCollisionObject()
+        protected override CollisionObject _BuildCollisionObject(BPhysicsWorld world)
         {
-            BPhysicsWorld world = BPhysicsWorld.Get();
-            if (m_collisionObject != null)
-            {
-                if (isInWorld && world != null)
-                {
-                    world.RemoveCollisionObject(m_collisionObject);
-                }
-            }
+            RemoveObjectFromBulletWorld();
 
             if (transform.localScale != UnityEngine.Vector3.one)
             {
@@ -35,7 +28,7 @@ namespace BulletUnity
             if (m_collisionShape == null)
             {
                 Debug.LogError("There was no collision shape component attached to this BRigidBody. " + name);
-                return false;
+                return null;
             }
 
             CollisionShape cs = m_collisionShape.GetCollisionShape();
@@ -65,7 +58,7 @@ namespace BulletUnity
                 m_collisionObject.CollisionFlags = m_collisionObject.CollisionFlags | BulletSharp.CollisionFlags.KinematicObject;
                 m_collisionObject.CollisionFlags &= ~BulletSharp.CollisionFlags.StaticObject;
             }
-            return true;
+            return m_collisionObject;
         }
 
         void PrintCollisionFlags(BulletSharp.CollisionFlags flags)
@@ -86,84 +79,86 @@ namespace BulletUnity
         HashSet<CollisionObject> objsCurrentlyInContactWith = new HashSet<CollisionObject>();
         void FixedUpdate()
         {
-            CollisionWorld collisionWorld = BPhysicsWorld.Get().world;
-            collisionWorld.Dispatcher.DispatchAllCollisionPairs(m_ghostObject.OverlappingPairCache, collisionWorld.DispatchInfo, collisionWorld.Dispatcher);
+            if (CurrentWorld != null) {
+                CollisionWorld collisionWorld = CurrentWorld.world;
+                collisionWorld.Dispatcher.DispatchAllCollisionPairs(m_ghostObject.OverlappingPairCache, collisionWorld.DispatchInfo, collisionWorld.Dispatcher);
 
-            //m_currentPosition = m_ghostObject.WorldTransform.Origin;
+                //m_currentPosition = m_ghostObject.WorldTransform.Origin;
 
-            //float maxPen = 0f;
-            objsCurrentlyInContactWith.Clear();
-            for (int i = 0; i < m_ghostObject.OverlappingPairCache.NumOverlappingPairs; i++)
-            {
-                manifoldArray.Clear();
-
-                BroadphasePair collisionPair = m_ghostObject.OverlappingPairCache.OverlappingPairArray[i];
-
-                CollisionObject obj0 = collisionPair.Proxy0.ClientObject as CollisionObject;
-                CollisionObject obj1 = collisionPair.Proxy1.ClientObject as CollisionObject;
-
-                if ((obj0 != null && !obj0.HasContactResponse) || (obj1 != null && !obj1.HasContactResponse))
-                    continue;
-
-                if (collisionPair.Algorithm != null)
+                //float maxPen = 0f;
+                objsCurrentlyInContactWith.Clear();
+                for (int i = 0; i < m_ghostObject.OverlappingPairCache.NumOverlappingPairs; i++)
                 {
-                    collisionPair.Algorithm.GetAllContactManifolds(manifoldArray);
-                }
+                    manifoldArray.Clear();
 
-                CollisionObject otherObj = null;
-                if (manifoldArray.Count > 0)
-                {
-                    PersistentManifold pm = manifoldArray[0];
-                    if (pm.Body0 == m_collisionObject)
+                    BroadphasePair collisionPair = m_ghostObject.OverlappingPairCache.OverlappingPairArray[i];
+
+                    CollisionObject obj0 = collisionPair.Proxy0.ClientObject as CollisionObject;
+                    CollisionObject obj1 = collisionPair.Proxy1.ClientObject as CollisionObject;
+
+                    if ((obj0 != null && !obj0.HasContactResponse) || (obj1 != null && !obj1.HasContactResponse))
+                        continue;
+
+                    if (collisionPair.Algorithm != null)
                     {
-                        otherObj = pm.Body1;
+                        collisionPair.Algorithm.GetAllContactManifolds(manifoldArray);
+                    }
+
+                    CollisionObject otherObj = null;
+                    if (manifoldArray.Count > 0)
+                    {
+                        PersistentManifold pm = manifoldArray[0];
+                        if (pm.Body0 == m_collisionObject)
+                        {
+                            otherObj = pm.Body1;
+                        }
+                        else
+                        {
+                            otherObj = pm.Body0;
+                        }
                     }
                     else
                     {
-                        otherObj = pm.Body0;
+                        continue;
+                    }
+
+                    objsCurrentlyInContactWith.Add(otherObj);
+                    if (!objsIWasInContactWithLastFrame.Contains(otherObj))
+                    {
+                        BOnTriggerEnter(otherObj, manifoldArray);
+                    }
+                    else
+                    {
+                        BOnTriggerStay(otherObj, manifoldArray);
                     }
                 }
-                else
+                objsIWasInContactWithLastFrame.ExceptWith(objsCurrentlyInContactWith);
+
+                foreach (CollisionObject co in objsIWasInContactWithLastFrame)
                 {
-                    continue;
+                    BOnTriggerExit(co);
                 }
 
-                objsCurrentlyInContactWith.Add(otherObj);
-                if (!objsIWasInContactWithLastFrame.Contains(otherObj))
-                {
-                    BOnTriggerEnter(otherObj, manifoldArray);
-                }
-                else
-                {
-                    BOnTriggerStay(otherObj, manifoldArray);
-                }
+                //swap the hashsets so objsIWasInContactWithLastFrame now contains the list of objs.
+                HashSet<CollisionObject> temp = objsIWasInContactWithLastFrame;
+                objsIWasInContactWithLastFrame = objsCurrentlyInContactWith;
+                objsCurrentlyInContactWith = temp;
             }
-            objsIWasInContactWithLastFrame.ExceptWith(objsCurrentlyInContactWith);
-
-            foreach (CollisionObject co in objsIWasInContactWithLastFrame)
-            {
-                BOnTriggerExit(co);
-            }
-
-            //swap the hashsets so objsIWasInContactWithLastFrame now contains the list of objs.
-            HashSet<CollisionObject> temp = objsIWasInContactWithLastFrame;
-            objsIWasInContactWithLastFrame = objsCurrentlyInContactWith;
-            objsCurrentlyInContactWith = temp;
         }
          
         public override void BOnTriggerEnter(CollisionObject other, AlignedManifoldArray manifoldArray)
         {
-            Debug.Log("Enter with " + other.UserObject + " fixedFrame " + BPhysicsWorld.Get().frameCount);
+            //Debug.Log("Enter with " + other.UserObject + " fixedFrame " + BPhysicsWorld.Get().frameCount);
         }
 
         public override void BOnTriggerStay(CollisionObject other, AlignedManifoldArray manifoldArray)
         {
-            Debug.Log("Stay with " + other.UserObject + " fixedFrame " + BPhysicsWorld.Get().frameCount);
+            //Debug.Log("Stay with " + other.UserObject + " fixedFrame " + BPhysicsWorld.Get().frameCount);
         }
 
         public override void BOnTriggerExit(CollisionObject other)
         {
-            Debug.Log("Exit with " + other.UserObject + " fixedFrame " + BPhysicsWorld.Get().frameCount);
+            //Debug.Log("Exit with " + other.UserObject + " fixedFrame " + BPhysicsWorld.Get().frameCount);
         }
         //============
     }

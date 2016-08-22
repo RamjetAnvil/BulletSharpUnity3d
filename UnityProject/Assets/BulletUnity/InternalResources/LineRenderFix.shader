@@ -1,4 +1,4 @@
-﻿Shader "LineRenderFix" {
+Shader "LineRenderFix" {
 	Subshader{
 		BindChannels{
 		Bind "vertex", vertex

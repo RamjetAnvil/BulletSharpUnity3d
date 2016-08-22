@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using UnityEngine;
 using BulletSharp;
 using BulletSharp.Math;
@@ -11,8 +11,9 @@ namespace BulletUnity {
         continuous collision detection ccd
         */
 	[AddComponentMenu("Physics Bullet/RigidBody")]
-    public class BRigidBody : BCollisionObject, IDisposable {
+    public class BRigidBody : BCollisionObject {
         BGameObjectMotionState m_motionState;
+	    private IWorldRegistrar _worldRegistrar;
 
         RigidBody m_rigidBody
         {
@@ -134,7 +135,7 @@ namespace BulletUnity {
         {
             get { return _additionalDamping; }
             set {
-                if (isInWorld && _additionalDamping != value)
+                if (IsInWorld && _additionalDamping != value)
                 {
 					BDebug.LogError(debugType, "Need to remove and re-add the rigid body to change additional damping setting");
                     return;
@@ -366,12 +367,8 @@ namespace BulletUnity {
 
         //called by Physics World just before rigid body is added to world.
         //the current rigid body properties are used to rebuild the rigid body.
-        internal override bool _BuildCollisionObject() {
-            BPhysicsWorld world = BPhysicsWorld.Get();
-            if (m_rigidBody != null && isInWorld && world != null) {
-                isInWorld = false;
-                world.RemoveRigidBody(m_rigidBody);
-            }
+        protected override CollisionObject _BuildCollisionObject(BPhysicsWorld world) {
+            RemoveObjectFromBulletWorld();
             
             if (transform.localScale != UnityEngine.Vector3.one) {
 				BDebug.LogError(debugType, "The local scale on this rigid body is not one. Bullet physics does not support scaling on a rigid body world transform. Instead alter the dimensions of the CollisionShape.");
@@ -380,7 +377,7 @@ namespace BulletUnity {
             m_collisionShape = GetComponent<BCollisionShape>();
             if (m_collisionShape == null) {
 				BDebug.LogError(debugType, "There was no collision shape component attached to this BRigidBody. {0}", name);
-                return false;
+                return null;
             }
 
             CollisionShape cs = m_collisionShape.GetCollisionShape();
@@ -394,7 +391,7 @@ namespace BulletUnity {
             m_collisionObject = rb;
             m_collisionObject.UserObject = this;
 
-            return true;
+            return rb;
         }
 
         protected override void Awake() {
@@ -410,7 +407,7 @@ namespace BulletUnity {
 
         protected override void OnDisable()
         {
-            if (m_rigidBody != null && isInWorld) {
+            if (m_rigidBody != null && IsInWorld) {
                 //all constraints using RB must be disabled before rigid body is disabled
                 for (int i = m_rigidBody.NumConstraintRefs - 1; i >= 0; i--)
                 {
@@ -422,45 +419,21 @@ namespace BulletUnity {
             base.OnDisable();
         }
 
-        protected override void AddObjectToBulletWorld()
+	    protected override IWorldRegistrar WorldRegistrar 
         {
-            BPhysicsWorld.Get().AddRigidBody(this);
-        }
-
-        protected override void RemoveObjectFromBulletWorld()
-        {
-            BPhysicsWorld pw = BPhysicsWorld.Get();
-            if (pw != null && m_rigidBody != null && isInWorld)
+	        get 
             {
-                Debug.Assert(m_rigidBody.NumConstraintRefs == 0, "Removing rigid body that still had constraints. Remove constraints first.");
-                //constraints must be removed before rigid body is removed
-                pw.RemoveRigidBody((RigidBody)m_collisionObject);
-            }
-        }
-
-        protected override void Dispose(bool isdisposing) {
-            if (isInWorld && isdisposing && m_rigidBody != null) {
-                BPhysicsWorld pw = BPhysicsWorld.Get();
-                if (pw != null && pw.world != null) {
-                    //constraints must be removed before rigid body is removed
-                    for (int i = m_rigidBody.NumConstraintRefs; i > 0; i--)
-                    {
-                        BTypedConstraint tc = (BTypedConstraint) m_rigidBody.GetConstraintRef(i - 1).Userobject;
-                        ((DiscreteDynamicsWorld)pw.world).RemoveConstraint(tc.GetConstraint());
-                    }
-                    ((DiscreteDynamicsWorld) pw.world).RemoveRigidBody(m_rigidBody);
-                }
-            }
-            if (m_rigidBody != null) {
-                if (m_rigidBody.MotionState != null) m_rigidBody.MotionState.Dispose();
-                m_rigidBody.Dispose();
-                m_rigidBody = null;
-            }
-        }
-
+	            if (_worldRegistrar == null) 
+                {
+	                _worldRegistrar = new RigidbodyRegistrar(this);
+	            }
+	            return _worldRegistrar;
+	        }
+	    }
+        
         public void AddImpulse(UnityEngine.Vector3 impulse)
         {
-            if (isInWorld)
+            if (IsInWorld)
             {
                 m_rigidBody.ApplyCentralImpulse(impulse.ToBullet());
             }
@@ -469,7 +442,7 @@ namespace BulletUnity {
 
         public void AddImpulseAtPosition(UnityEngine.Vector3 impulse, UnityEngine.Vector3 relativePostion)
         {
-            if (isInWorld)
+            if (IsInWorld)
             {
                 m_rigidBody.ApplyImpulse(impulse.ToBullet(), relativePostion.ToBullet());
             }
@@ -477,7 +450,7 @@ namespace BulletUnity {
 
         public void AddTorqueImpulse(UnityEngine.Vector3 impulseTorque)
         {
-            if (isInWorld)
+            if (IsInWorld)
             {
                 m_rigidBody.ApplyTorqueImpulse(impulseTorque.ToBullet());
             }
@@ -489,7 +462,7 @@ namespace BulletUnity {
         accumulator and do nothing. 
         */
         public void AddForce(UnityEngine.Vector3 force) {
-            if (isInWorld) {
+            if (IsInWorld) {
                 m_rigidBody.ApplyCentralForce(force.ToBullet());
             }
         }
@@ -500,7 +473,7 @@ namespace BulletUnity {
          accumulator and do nothing. 
          */
         public void AddForceAtPosition(UnityEngine.Vector3 force, UnityEngine.Vector3 relativePostion) {
-            if (isInWorld) {
+            if (IsInWorld) {
                 m_rigidBody.ApplyForce(force.ToBullet(), relativePostion.ToBullet());
             }
         }
@@ -511,8 +484,86 @@ namespace BulletUnity {
          accumulator and do nothing. 
          */
         public void AddTorque(UnityEngine.Vector3 torque) {
-            if (isInWorld) {
+            if (IsInWorld) {
                 m_rigidBody.ApplyTorque(torque.ToBullet());
+            }
+        }
+
+
+        private class RigidbodyRegistrar : IWorldRegistrar 
+        {
+            private readonly BRigidBody _rigidbody;
+
+            public RigidbodyRegistrar(BRigidBody rigidbody) 
+            {
+                _rigidbody = rigidbody;
+            }
+
+            public bool AddTo(BPhysicsWorld unityWorld) 
+            {
+                if (!unityWorld.isDisposed)
+                {
+                    if (unityWorld.worldType < BPhysicsWorld.WorldType.RigidBodyDynamics)
+                    {
+                        BDebug.LogError(unityWorld.debugType, "World type must not be collision only");
+                    }
+                    if (unityWorld.debugType >= BDebug.DebugType.Debug) 
+                    {
+                        Debug.LogFormat("Adding rigidbody {0} to world", _rigidbody);
+                    }
+
+                    var collisionObject = _rigidbody._BuildCollisionObject(unityWorld) as RigidBody;
+                    if (collisionObject != null)
+                    {
+                        ((DiscreteDynamicsWorld)unityWorld.world).AddRigidBody(
+                            collisionObject, 
+                            _rigidbody.groupsIBelongTo, 
+                            _rigidbody.collisionMask);
+                    }
+                    return true;
+                }
+                return false;
+            }
+
+            public void RemoveFrom(BPhysicsWorld unityWorld) {
+                if (unityWorld != null && _rigidbody.m_rigidBody != null && _rigidbody.IsInWorld)
+                {
+                    var bulletRigidbody = _rigidbody.m_rigidBody;
+
+                    Debug.Assert(bulletRigidbody.NumConstraintRefs == 0, "Removing rigid body that still had constraints. Remove constraints first.");
+                    //constraints must be removed before rigid body is removed
+
+                    if (!unityWorld.isDisposed) 
+                    {
+                        if (unityWorld.worldType < BPhysicsWorld.WorldType.RigidBodyDynamics)
+                        {
+                            BDebug.LogError(unityWorld.debugType, "World type must not be collision only");
+                        }
+                        if (unityWorld.debugType >= BDebug.DebugType.Debug) Debug.LogFormat("Removing rigidbody {0} from world", bulletRigidbody.UserObject);
+                        ((DiscreteDynamicsWorld)unityWorld.world).RemoveRigidBody(bulletRigidbody);
+                    }
+                }
+            }
+
+            public void Dispose() {
+                if (_rigidbody.IsInWorld && _rigidbody.m_rigidBody != null) {
+                    //constraints must be removed before rigid body is removed
+                    for (int i = _rigidbody.m_rigidBody.NumConstraintRefs; i > 0; i--)
+                    {
+                        BTypedConstraint tc = (BTypedConstraint) _rigidbody.m_rigidBody.GetConstraintRef(i - 1).Userobject;
+                        tc.RemoveFromBulletWorld();
+                    }
+                    _rigidbody.RemoveObjectFromBulletWorld();
+                }
+
+                if (_rigidbody.m_rigidBody != null) {
+                    if (_rigidbody.m_rigidBody.MotionState != null) 
+                    {
+                        _rigidbody.m_rigidBody.MotionState.Dispose();
+                    }
+                    _rigidbody.m_rigidBody.Dispose();
+                    _rigidbody.m_rigidBody = null;
+                }
             }
         }
 

@@ -1,4 +1,5 @@
-﻿using UnityEngine;
+using BulletUnity.Debugging;
+using UnityEngine;
 using System.Collections;
 using BulletSharp.SoftBody;
 using System;
@@ -9,8 +10,10 @@ using System.Collections.Generic;
 namespace BulletUnity
 {
 
-    public class BSoftBody : BCollisionObject, IDisposable
+    public class BSoftBody : BCollisionObject 
     {
+        private IWorldRegistrar _worldRegistrar;
+
         //common Soft body settings class used for all softbodies, parameters set based on type of soft body
         [SerializeField]
         private SBSettings _softBodySettings = new SBSettings();      //SoftBodyEditor will display this when needed
@@ -21,11 +24,20 @@ namespace BulletUnity
         }
 
         //protected SoftBody m_BSoftBody;
+//
+//        SoftRigidDynamicsWorld _world;
+//        protected SoftRigidDynamicsWorld World
+//        {
+//            get { return _world = _world ?? (SoftRigidDynamicsWorld)BPhysicsWorld.Get().world; }
+//        }
 
-        SoftRigidDynamicsWorld _world;
-        protected SoftRigidDynamicsWorld World
-        {
-            get { return _world = _world ?? (SoftRigidDynamicsWorld)BPhysicsWorld.Get().world; }
+        protected override IWorldRegistrar WorldRegistrar {
+            get {
+                if (_worldRegistrar == null) {
+                    _worldRegistrar = new SoftbodyRegistrar(this);
+                }
+                return _worldRegistrar;
+            }
         }
 
         //for converting to/from unity mesh
@@ -38,52 +50,19 @@ namespace BulletUnity
             //disable warning
         }
 
-        protected override void AddObjectToBulletWorld()
+        protected override CollisionObject _BuildCollisionObject(BPhysicsWorld world)
         {
-            BPhysicsWorld.Get().AddSoftBody(this);
+            return null;
         }
 
-        protected override void RemoveObjectFromBulletWorld()
+        public void BuildSoftBody(BPhysicsWorld world)
         {
-            BPhysicsWorld world = BPhysicsWorld.Get();
-            if (world && isInWorld)
-            {
-                world.RemoveSoftBody((SoftBody)m_collisionObject);
-            }
-        }
-
-
-        internal override bool _BuildCollisionObject()
-        {
-            return false;
-        }
-
-        public void BuildSoftBody()
-        {
-            _BuildCollisionObject();
-        }
-
-        protected override void Dispose(bool isdisposing)
-        {
-            SoftBody m_BSoftBody = (SoftBody)m_collisionObject;
-            if (isInWorld && isdisposing && m_BSoftBody != null)
-            {
-                if (m_BSoftBody != null)
-                {
-                    World.RemoveSoftBody(m_BSoftBody);
-                }
-            }
-            if (m_BSoftBody != null)
-            {
-                m_BSoftBody.Dispose();
-                m_BSoftBody = null;
-            }
-            Debug.Log("Destroying SoftBody " + name);
+            _BuildCollisionObject(world);
         }
 
         public void DumpDataFromBullet()
         {
-            if (isInWorld)
+            if (IsInWorld)
             {
                 SoftBody m_BSoftBody = (SoftBody)m_collisionObject;
                 if (verts.Length != m_BSoftBody.Nodes.Count)
@@ -118,9 +97,68 @@ namespace BulletUnity
 
         }
 
+        public class SoftbodyRegistrar : IWorldRegistrar 
+        {
+            private readonly BSoftBody _softbody;
 
+            public SoftbodyRegistrar(BSoftBody softbody) 
+            {
+                _softbody = softbody;
+            }
 
+            public bool AddTo(BPhysicsWorld unityWorld) 
+            {
+                var world = unityWorld.world;
+                if (!(world is BulletSharp.SoftBody.SoftRigidDynamicsWorld))
+                {
+                    if (unityWorld.debugType >= BDebug.DebugType.Debug) 
+                    {
+                        Debug.LogFormat("The Physics World must be a BSoftBodyWorld for adding soft bodies");
+                    }
+                    return false;
+                }
+                if (!unityWorld.isDisposed)
+                {
+                    if (unityWorld.debugType >= BDebug.DebugType.Debug) 
+                    {
+                        Debug.LogFormat("Adding softbody {0} to world", _softbody);
+                    }
 
+                    var collisionObject = _softbody._BuildCollisionObject(unityWorld) as SoftBody;
+                    if (collisionObject != null)
+                    {
+                        ((SoftRigidDynamicsWorld)world).AddSoftBody(collisionObject);
+                    }
+                    return true;
+                }
+                return false;
+            }
 
+            public void RemoveFrom(BPhysicsWorld unityWorld) 
+            {
+                if (unityWorld && _softbody.IsInWorld)
+                {
+                    if (!unityWorld.isDisposed && unityWorld.world is SoftRigidDynamicsWorld) 
+                    {
+                        var bulletSoftbody = (SoftBody) _softbody.m_collisionObject;
+                        if (unityWorld.debugType >= BDebug.DebugType.Debug) 
+                        {
+                            Debug.LogFormat("Removing softbody {0} from world", bulletSoftbody.UserObject);
+                        }
+                        ((SoftRigidDynamicsWorld)unityWorld.world).RemoveSoftBody(bulletSoftbody);
+                    }
+                }
+            }
+
+            public void Dispose() 
+            {
+                SoftBody m_BSoftBody = _softbody.m_collisionObject as SoftBody;
+                if (m_BSoftBody != null)
+                {
+                    m_BSoftBody.Dispose();
+                }
+                Debug.Log("Destroying SoftBody " + _softbody.name);
+            }
+        }
     }
 }

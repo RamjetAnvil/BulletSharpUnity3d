@@ -1,4 +1,4 @@
-﻿using BulletSharp;
+using BulletSharp;
 using BulletSharp.Math;
 using System.Collections.Generic;
 using System.Globalization;

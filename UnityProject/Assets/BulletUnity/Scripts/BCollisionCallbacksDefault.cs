@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 using System.Collections;
 using System.Collections.Generic;
 using BulletSharp;
@@ -6,6 +6,7 @@ using System;
 
 namespace BulletUnity
 {
+    [RequireComponent(typeof(BCollisionObject))]
     public class BCollisionCallbacksDefault : BCollisionCallbacks
     {
         public class PersistentManifoldList
@@ -20,13 +21,7 @@ namespace BulletUnity
 
         public override void Start()
         {
-
             BCollisionObject co = GetComponent<BCollisionObject>();
-            if (co == null)
-            {
-                Debug.LogError("BCollisionCallbacksDefault must be attached to an object with a BCollisionObject.");
-                return;
-            }
             myCollisionObject = co.GetCollisionObject();
         }
 

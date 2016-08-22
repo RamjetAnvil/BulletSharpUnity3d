@@ -1,4 +1,5 @@
-﻿using UnityEngine;
+using BulletUnity.Debugging;
+using UnityEngine;
 using System;
 using System.Collections;
 using BulletSharp;
@@ -14,24 +15,42 @@ namespace BulletUnity
             void OnFinishedVisitingManifolds();
         }
 
-
-        //This is used to handle a design problem. 
-        //We want OnEnable to add physics object to world and OnDisable to remove.
-        //We also want user to be able to in script: AddComponent<CollisionObject>, configure it, add it to world, potentialy disable to delay it being added to world
-        //Problem is OnEnable gets called before Awake and Start so that developer has no chance to configure object before it is added to world or prevent
-        //It from being added.
-        //Solution is not to add object to the world until after Start has been called. Start will do the first add to world. 
-        protected bool m_startHasBeenCalled = false;
+        private IWorldRegistrar _worldRegistrar;
 
         protected CollisionObject m_collisionObject;
         protected BCollisionShape m_collisionShape;
-        internal bool isInWorld = false;
+        private BPhysicsWorld _currentWorld = null;
+        private bool _isInWorld = false;
         [SerializeField]
         protected BulletSharp.CollisionFlags m_collisionFlags = BulletSharp.CollisionFlags.None;
         [SerializeField]
         protected BulletSharp.CollisionFilterGroups m_groupsIBelongTo = BulletSharp.CollisionFilterGroups.DefaultFilter; // A bitmask
         [SerializeField]
         protected BulletSharp.CollisionFilterGroups m_collisionMask = BulletSharp.CollisionFilterGroups.AllFilter; // A colliding object must match this mask in order to collide with me.
+
+        protected virtual IWorldRegistrar WorldRegistrar {
+            get 
+            {
+                // TODO Remove lazy init
+                if (_worldRegistrar == null) 
+                {
+                    _worldRegistrar = new CollisionObjectRegistrar(this);
+                }
+                return _worldRegistrar;
+            }
+        }
+
+        public bool IsInWorld 
+        {
+            get 
+            {
+                return _isInWorld; 
+            }
+        }
+
+        public BPhysicsWorld CurrentWorld {
+            get { return _currentWorld; }
+        }
 
         public BulletSharp.CollisionFlags collisionFlags
         {
@@ -83,38 +102,32 @@ namespace BulletUnity
 
         public virtual void AddOnCollisionCallbackEventHandler(BICollisionCallbackEventHandler myCallback)
         {
-            BPhysicsWorld bhw = BPhysicsWorld.Get();
+            if (_currentWorld == null) 
+            {
+                throw new Exception(String.Format("BCollisionObject {0} is not in any world. Please add it to a physics world first.", name));   
+            } 
             if (m_onCollisionCallback != null)
             {
-                Debug.LogErrorFormat("BCollisionObject {0} already has a collision callback. You must remove it before adding another. ", name);
-                
+                throw new Exception(String.Format("BCollisionObject {0} already has a collision callback. You must remove it before adding another. ", name));
             }
             m_onCollisionCallback = myCallback;
-            bhw.RegisterCollisionCallbackListener(m_onCollisionCallback);
+            _currentWorld.RegisterCollisionCallbackListener(m_onCollisionCallback);
         }
 
         public virtual void RemoveOnCollisionCallbackEventHandler()
         {
-            BPhysicsWorld bhw = BPhysicsWorld.Get();
-            if (bhw != null && m_onCollisionCallback != null)
+            if (_currentWorld != null && m_onCollisionCallback != null)
             {
-                bhw.DeregisterCollisionCallbackListener(m_onCollisionCallback);
+                _currentWorld.DeregisterCollisionCallbackListener(m_onCollisionCallback);
             }
             m_onCollisionCallback = null;
         }
 
         //called by Physics World just before rigid body is added to world.
         //the current rigid body properties are used to rebuild the rigid body.
-        internal virtual bool _BuildCollisionObject()
+        protected virtual CollisionObject _BuildCollisionObject(BPhysicsWorld world)
         {
-            BPhysicsWorld world = BPhysicsWorld.Get();
-            if (m_collisionObject != null)
-            {
-                if (isInWorld && world != null)
-                {
-                    world.RemoveCollisionObject(m_collisionObject);
-                }
-            }
+            RemoveObjectFromBulletWorld();
 
             if (transform.localScale != UnityEngine.Vector3.one)
             {
@@ -125,7 +138,7 @@ namespace BulletUnity
             if (m_collisionShape == null)
             {
                 Debug.LogError("There was no collision shape component attached to this BRigidBody. " + name);
-                return false;
+                return null;
             }
 
             CollisionShape cs = m_collisionShape.GetCollisionShape();
@@ -154,15 +167,12 @@ namespace BulletUnity
                 m_collisionObject.WorldTransform = worldTrans;
                 m_collisionObject.CollisionFlags = m_collisionFlags;
             }
-            return true;
+            return m_collisionObject;
         }
 
         public virtual CollisionObject GetCollisionObject()
         {
-            if (m_collisionObject == null)
-            {
-                _BuildCollisionObject();
-            }
+            Debug.Assert(IsInWorld, "Cannot retrieve a collision object for an object that is not in a world");
             return m_collisionObject;
         }
 
@@ -176,25 +186,23 @@ namespace BulletUnity
             }
         }
 
-        protected virtual void AddObjectToBulletWorld()
+        public void AddObjectToBulletWorld(BPhysicsWorld world) 
         {
-            BPhysicsWorld.Get().AddCollisionObject(this);
+            _currentWorld = world;
+            if (enabled) 
+            {
+                WorldRegistrar.AddTo(world);
+                _isInWorld = true;
+            }
         }
 
-        protected virtual void RemoveObjectFromBulletWorld()
+        public void RemoveObjectFromBulletWorld() 
         {
-            BPhysicsWorld.Get().RemoveCollisionObject(m_collisionObject);
-        }
-
-        
-        //Add this object to the world on Start. We are doing this so that scripts which add this componnet to 
-        //game objects have a chance to configure them before the object is added to the bullet world.
-        //Be aware that Start is not affected by script execution order so objects such as constraints should
-        //make sure that objects they depend on have been added to the world before they add themselves.
-        internal virtual void Start()
-        {
-            m_startHasBeenCalled = true;
-            AddObjectToBulletWorld();
+            if (_currentWorld != null) 
+            {
+                WorldRegistrar.RemoveFrom(_currentWorld);
+            }
+            _isInWorld = false;
         }
 
         //OnEnable and OnDisable are called when a game object is Activated and Deactivated. 
@@ -204,55 +212,35 @@ namespace BulletUnity
         //don't try to call functions on world before Start is called. It may not exist.
         protected virtual void OnEnable()
         {
-            if (!isInWorld && m_startHasBeenCalled)
+            if (_currentWorld != null && !_isInWorld)
             {
-                AddObjectToBulletWorld();
+                AddObjectToBulletWorld(_currentWorld);
             }
         }
 
         // when scene is closed objects, including the physics world, are destroyed in random order. 
         // There is no way to distinquish between scene close destruction and normal gameplay destruction.
         // Objects cannot depend on world existing when they Dispose of themselves. World may have been destroyed first.
-        protected virtual void OnDisable()
+        protected virtual void OnDisable() 
         {
-            if (isInWorld)
-            {
-                RemoveObjectFromBulletWorld();
-            }
+            RemoveObjectFromBulletWorld();
         }
 
         protected virtual void OnDestroy()
         {
-            Dispose(false);
+            RemoveObjectFromBulletWorld();
         }
 
-        public void Dispose()
+        public void Dispose() 
         {
-            Dispose(true);
+            RemoveObjectFromBulletWorld();
+            WorldRegistrar.Dispose();
             GC.SuppressFinalize(this);
         }
-
-        protected virtual void Dispose(bool isdisposing)
-        {
-            if (isInWorld && isdisposing && m_collisionObject != null)
-            {
-                BPhysicsWorld pw = BPhysicsWorld.Get();
-                if (pw != null && pw.world != null)
-                {
-                    ((DiscreteDynamicsWorld)pw.world).RemoveCollisionObject(m_collisionObject);
-                }
-            }
-            if (m_collisionObject != null)
-            {
-               
-                m_collisionObject.Dispose();
-                m_collisionObject = null;
-            }
-        }
-
+        
         public virtual void SetPosition(Vector3 position)
         {
-            if (isInWorld)
+            if (_isInWorld)
             {
                 BulletSharp.Math.Matrix newTrans = m_collisionObject.WorldTransform;
                 newTrans.Origin = position.ToBullet();
@@ -267,7 +255,7 @@ namespace BulletUnity
 
         public virtual void SetPositionAndRotation(Vector3 position, Quaternion rotation)
         {
-            if (isInWorld)
+            if (_isInWorld)
             {
                 BulletSharp.Math.Matrix newTrans = m_collisionObject.WorldTransform;
                 BulletSharp.Math.Quaternion q = rotation.ToBullet();
@@ -285,7 +273,7 @@ namespace BulletUnity
 
         public virtual void SetRotation(Quaternion rotation)
         {
-            if (isInWorld)
+            if (_isInWorld)
             {
                 BulletSharp.Math.Matrix newTrans = m_collisionObject.WorldTransform;
                 BulletSharp.Math.Quaternion q = rotation.ToBullet();
@@ -300,5 +288,55 @@ namespace BulletUnity
             }
         }
 
+
+        private class CollisionObjectRegistrar : IWorldRegistrar 
+        {
+            private readonly BCollisionObject _object;
+
+            public CollisionObjectRegistrar(BCollisionObject o) 
+            {
+                _object = o;
+            }
+
+            public bool AddTo(BPhysicsWorld unityWorld) 
+            {
+                if (!unityWorld.isDisposed)
+                {
+                    if (unityWorld.debugType >= BDebug.DebugType.Debug) Debug.LogFormat("Adding collision object {0} to world", _object);
+
+                    var world = unityWorld.world;
+                    var collisionObject = _object._BuildCollisionObject(unityWorld);
+                    if (collisionObject != null)
+                    {
+                        world.AddCollisionObject(collisionObject, _object.groupsIBelongTo, _object.collisionMask);
+                        if (_object is BGhostObject)
+                        {
+                            unityWorld.InitializeGhostPairCallback();
+                        }
+                        if (_object is BCharacterController && world is DynamicsWorld)
+                        {
+                            unityWorld.AddAction(((BCharacterController)_object).GetKinematicCharacterController());
+                        }
+                    }
+                    return true;
+                }
+                return false;
+            }
+
+            public void RemoveFrom(BPhysicsWorld unityWorld) 
+            {
+                if (!unityWorld.isDisposed) 
+                {
+                    var bulletCollisionObject = _object.m_collisionObject;
+                    if (unityWorld.debugType >= BDebug.DebugType.Debug) Debug.LogFormat("Removing collisionObject {0} from world", bulletCollisionObject.UserObject);
+                    unityWorld.world.RemoveCollisionObject(bulletCollisionObject);
+                    //TODO handle removing kinematic character controller action
+                }
+            }
+
+            public void Dispose() {
+                _object.m_collisionObject.Dispose();
+            }
+        }
     }
 }

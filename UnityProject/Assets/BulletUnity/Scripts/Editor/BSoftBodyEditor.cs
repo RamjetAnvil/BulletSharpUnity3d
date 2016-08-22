@@ -1,4 +1,4 @@
-﻿using UnityEditor;
+using UnityEditor;
 using UnityEngine;
 
 
@@ -83,10 +83,10 @@ namespace BulletUnity
 
             serializedObject.ApplyModifiedProperties();
 
-            if (GUI.changed) //Can apply settings on editor change
-            {
-                bSoftBodyTarget.BuildSoftBody();
-            }
+//            if (GUI.changed) //Can apply settings on editor change
+//            {
+//                bSoftBodyTarget.BuildSoftBody();
+//            }
 
 
 
@@ -107,7 +107,7 @@ namespace BulletUnity
         [MenuItem("GameObject/Create Other/BulletForUnity/BSoftBody/BSoftBodyWMesh")]  //right click menu
         static void CreateBSoftWithMesh()
         {
-            Selection.activeObject = BSoftBodyWMesh.CreateNew(EditorHelpers.GetCameraRaycastPosition(), Quaternion.identity, BAnyMeshSettingsForEditor.Instance.Build(), true);
+            Selection.activeObject = BSoftBodyWMesh.CreateNew(EditorHelpers.GetCameraRaycastPosition(), Quaternion.identity, BAnyMeshSettingsForEditor.Instance.Build());
             PostCreateObject();
         }
 
@@ -135,7 +135,7 @@ namespace BulletUnity
             if (EditorHelpers.InspectorButton("Update Mesh", 100, 15, GUIBlue, "New/Change mesh"))
             {
                 ((BSoftBodyWMesh)bSoftBodyTarget).meshSettings.UserMesh = bAny.Build();
-                bSoftBodyTarget.BuildSoftBody();
+                //bSoftBodyTarget.BuildSoftBody();
             }
 
             bAny.imediateUpdate = EditorGUILayout.Toggle("Imediate Update", bAny.imediateUpdate);
@@ -202,7 +202,7 @@ namespace BulletUnity
             if (GUI.changed && bAny.imediateUpdate) //Can apply settings on editor change
             {
                 ((BSoftBodyWMesh)bSoftBodyTarget).meshSettings.UserMesh = bAny.Build();
-                bSoftBodyTarget.BuildSoftBody();
+                //bSoftBodyTarget.BuildSoftBody();
             }
             EditorGUILayout.TextArea("Mesh Settings");
             EditorGUILayout.Space();

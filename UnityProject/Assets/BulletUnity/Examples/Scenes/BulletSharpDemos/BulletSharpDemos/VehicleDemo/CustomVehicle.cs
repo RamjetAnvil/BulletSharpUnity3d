@@ -1,4 +1,4 @@
-﻿#define ROLLING_INFLUENCE_FIX
+#define ROLLING_INFLUENCE_FIX
 
 using System;
 using System.Collections.Generic;

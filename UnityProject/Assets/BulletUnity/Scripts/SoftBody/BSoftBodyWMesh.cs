@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 using System.Collections;
 using BulletSharp.SoftBody;
 using System;
@@ -24,7 +24,7 @@ namespace BulletUnity
             get { return _meshFilter = _meshFilter ?? GetComponent<MeshFilter>(); }
         }
 
-        internal override bool _BuildCollisionObject()
+        protected override CollisionObject _BuildCollisionObject(BPhysicsWorld unityWorld)
         {
             Mesh mesh = meshSettings.Build();
 
@@ -38,7 +38,8 @@ namespace BulletUnity
                 bVerts[i] = mesh.vertices[i].ToBullet();
             }
 
-            SoftBody m_BSoftBody = SoftBodyHelpers.CreateFromTriMesh(World.WorldInfo, bVerts, mesh.triangles);
+            var world = (SoftRigidDynamicsWorld)unityWorld.world;
+            SoftBody m_BSoftBody = SoftBodyHelpers.CreateFromTriMesh(world.WorldInfo, bVerts, mesh.triangles);
             m_collisionObject = m_BSoftBody;
             SoftBodySettings.ConfigureSoftBody(m_BSoftBody);         //Set SB settings
 
@@ -47,7 +48,7 @@ namespace BulletUnity
             m_BSoftBody.Translate(transform.position.ToBullet());
             m_BSoftBody.Scale(transform.localScale.ToBullet());
 
-            return true;
+            return m_BSoftBody;
         }
 
         /// <summary>
@@ -59,7 +60,7 @@ namespace BulletUnity
         /// <param name="buildNow">Build now or configure properties and call BuildSoftBody() after</param>
         /// <param name="sBpresetSelect">Use a particular softBody configuration pre select values</param>
         /// <returns></returns>
-        public static GameObject CreateNew(Vector3 position, Quaternion rotation, Mesh mesh, bool buildNow, SBSettingsPresets sBpresetSelect = SBSettingsPresets.ShapeMatching)
+        public static GameObject CreateNew(Vector3 position, Quaternion rotation, Mesh mesh, SBSettingsPresets sBpresetSelect = SBSettingsPresets.ShapeMatching)
         {
             GameObject go = new GameObject("SoftBodyWMesh");
             go.transform.position = position;
@@ -73,10 +74,6 @@ namespace BulletUnity
 
             BSoft.SoftBodySettings.ResetToSoftBodyPresets(sBpresetSelect); //Apply SoftBody settings presets
 
-            if (buildNow)
-            {
-                BSoft._BuildCollisionObject();  //Build the SoftBody
-            }
             go.name = "BSoftBodyWMesh";
             return go;
         }

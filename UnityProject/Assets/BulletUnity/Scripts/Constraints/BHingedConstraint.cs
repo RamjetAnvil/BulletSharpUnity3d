@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using UnityEngine;
 using System.Collections;
 using BulletSharp;
@@ -140,23 +140,18 @@ namespace BulletUnity {
 
         //called by Physics World just before constraint is added to world.
         //the current constraint properties are used to rebuild the constraint.
-        internal override bool _BuildConstraint() {
-            BPhysicsWorld world = BPhysicsWorld.Get();
-            if (m_constraintPtr != null) {
-                if (m_isInWorld && world != null) {
-                    m_isInWorld = false;
-                    world.RemoveConstraint(m_constraintPtr);
-                }
-            }
+        internal override bool _BuildConstraint(BPhysicsWorld world) {
+            RemoveFromBulletWorld();
+
             BRigidBody targetRigidBodyA = GetComponent<BRigidBody>();
             if (targetRigidBodyA == null)
             {
                 Debug.LogError("BHingedConstraint needs to be added to a component with a BRigidBody.");
                 return false;
             }
-            if (!targetRigidBodyA.isInWorld)
+            if (!targetRigidBodyA.IsInWorld)
             {
-                world.AddRigidBody(targetRigidBodyA);
+                targetRigidBodyA.AddObjectToBulletWorld(world);
             }
             if (m_localConstraintAxisX == Vector3.zero)
             {
@@ -175,9 +170,9 @@ namespace BulletUnity {
                     Debug.LogError("Other rigid body must not be null");
                     return false;
                 }
-                if (!m_otherRigidBody.isInWorld)
+                if (!m_otherRigidBody.IsInWorld)
                 {
-                    world.AddRigidBody(m_otherRigidBody);
+                    m_otherRigidBody.AddObjectToBulletWorld(world);
                 }
                 RigidBody rbb = (RigidBody) m_otherRigidBody.GetCollisionObject();
                 if (rbb == null)

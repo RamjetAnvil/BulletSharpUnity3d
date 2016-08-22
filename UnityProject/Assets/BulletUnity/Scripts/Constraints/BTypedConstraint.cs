@@ -1,4 +1,5 @@
-﻿using System;
+using System;
+using BulletUnity.Debugging;
 using UnityEngine;
 using System.Collections;
 using BulletSharp;
@@ -8,7 +9,6 @@ namespace BulletUnity {
 
     [System.Serializable]
     public abstract class BTypedConstraint : MonoBehaviour, IDisposable {
-        protected bool m_startWasCalled = false;
 
         public enum ConstraintType
         {
@@ -182,8 +182,13 @@ namespace BulletUnity {
             }
         }
 
+        public bool IsInWorld {
+            get { return m_isInWorld; }
+        }
+
         internal TypedConstraint m_constraintPtr = null;
-        internal bool m_isInWorld = false;
+        private bool m_isInWorld = false;
+        private BPhysicsWorld _currentWorld;
 
         public void DrawTransformGizmos(Transform t, Vector3 pivotPoint, Vector3 forward, Vector3 up)
         {
@@ -274,42 +279,43 @@ namespace BulletUnity {
 
 
 
-        protected virtual void AddToBulletWorld()
+        public void AddToBulletWorld(BPhysicsWorld unityWorld)
         {
             if (!m_isInWorld)
             {
-                Debug.Assert(m_thisRigidBody.isInWorld, "Constrained bodies must be added to world before constraints");
+                Debug.Assert(m_thisRigidBody.IsInWorld, "Constrained bodies must be added to world before constraints");
                 if (m_constraintType == ConstraintType.constrainToAnotherBody)
                 {
-                    Debug.Assert(m_otherRigidBody.isInWorld, "Constrained bodies must be added to world before constraints");
+                    Debug.Assert(m_otherRigidBody.IsInWorld, "Constrained bodies must be added to world before constraints");
                 }
-                BPhysicsWorld.Get().AddConstraint(this);
+
+                if (!unityWorld.isDisposed)
+                {
+                    Debug.Assert(unityWorld.worldType >= BPhysicsWorld.WorldType.RigidBodyDynamics, "World type must not be collision only");
+                    if (unityWorld.debugType >= BDebug.DebugType.Debug) Debug.LogFormat("Adding constraint {0} to world", this);
+                    if (_BuildConstraint(unityWorld))
+                    {
+                        ((DiscreteDynamicsWorld)unityWorld.world).AddConstraint(GetConstraint(), disableCollisionsBetweenConstrainedBodies);
+                    }
+                }
+                m_isInWorld = true;
             }
         }
 
-        protected virtual void RemoveFromBulletWorld()
+        public void RemoveFromBulletWorld()
         {
             if (m_isInWorld)
             {
-                BPhysicsWorld.Get().RemoveConstraint(m_constraintPtr);
+                if (!_currentWorld.isDisposed)
+                {
+                    Debug.Assert(_currentWorld.worldType >= BPhysicsWorld.WorldType.RigidBodyDynamics, "World type must not be collision only");
+                    if (_currentWorld.debugType >= BDebug.DebugType.Debug) Debug.LogFormat("Removing constraint {0} from world", this);
+                    ((DiscreteDynamicsWorld)_currentWorld.world).RemoveConstraint(m_constraintPtr);
+                }
+                m_isInWorld = false;
             }
         }
-
-        protected virtual void Start()
-        {
-            m_startWasCalled = true;
-            //deal with nasty script order of execution bug. Order of Start call is random so force rigid bodies to be in the world before constraint is added
-            if (!m_thisRigidBody.isInWorld)
-            {
-                m_thisRigidBody.Start();
-            }
-            if (m_constraintType == ConstraintType.constrainToAnotherBody && !m_otherRigidBody.isInWorld)
-            {
-                m_otherRigidBody.Start();
-            }
-            AddToBulletWorld();
-        }
-
+        
         void OnDestroy() {
             Dispose(false);
         }
@@ -318,9 +324,9 @@ namespace BulletUnity {
         {
             m_thisRigidBody = GetComponent<BRigidBody>();
             if (m_thisRigidBody == null) Debug.LogError("Constraint must be added to a game object with a BRigidBody.");
-            if (m_startWasCalled)
+            if (_currentWorld != null)
             {
-                AddToBulletWorld();
+                AddToBulletWorld(_currentWorld);
             }
         }
 
@@ -345,14 +351,11 @@ namespace BulletUnity {
 
         //called by Physics World just before constraint is added to world.
         //the current constraint properties are used to rebuild the constraint.
-        internal abstract bool _BuildConstraint();
+        internal abstract bool _BuildConstraint(BPhysicsWorld world);
 
         public virtual TypedConstraint GetConstraint()
         {
-            if (m_constraintPtr == null)
-            {
-                _BuildConstraint();
-            }
+            Debug.Assert(m_constraintPtr != null, "Call BuildConstraint first");
             return m_constraintPtr;
         }
     }

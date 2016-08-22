@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 using System.Collections.Generic;
 using BulletUnity;
 using BulletSharp;
@@ -8,7 +8,7 @@ public static class OfflineBallSimulation {
     public static DiscreteDynamicsWorld World;
 
     //IMPORTANT Time.fixedTime must match the timestep being used here.
-    public static List<UnityEngine.Vector3> SimulateBall(BRigidBody ballRb, UnityEngine.Vector3 ballThrowForce, int numberOfSimulationSteps, bool reverseOrder)
+    public static List<UnityEngine.Vector3> SimulateBall(BPhysicsWorld bw, BRigidBody ballRb, UnityEngine.Vector3 ballThrowForce, int numberOfSimulationSteps, bool reverseOrder)
 	{
 		var ballPositions = new List<UnityEngine.Vector3>(numberOfSimulationSteps);
 
@@ -23,7 +23,6 @@ public static class OfflineBallSimulation {
         BulletSharp.SoftBody.SoftBodyWorldInfo softBodyWorldInfo;
 
         //This should create a copy of the BPhysicsWorld with the same settings
-        BPhysicsWorld bw = BPhysicsWorld.Get();
         bw.CreatePhysicsWorld(out cw, out CollisionConf, out Dispatcher, out Broadphase, out Solver, out softBodyWorldInfo);
         World = (DiscreteDynamicsWorld) cw;
 

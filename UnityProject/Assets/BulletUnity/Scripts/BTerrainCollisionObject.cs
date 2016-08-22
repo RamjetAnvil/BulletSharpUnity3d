@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 using System;
 using System.Collections;
 using BulletSharp;
@@ -26,22 +26,14 @@ namespace BulletUnity
 
         //called by Physics World just before rigid body is added to world.
         //the current rigid body properties are used to rebuild the rigid body.
-        internal override bool _BuildCollisionObject()
+        protected override CollisionObject _BuildCollisionObject(BPhysicsWorld world)
         {
             if (td == null)
             {
                 Debug.LogError("Must be attached to an object with a terrain ");
-                return false;
+                return null;
             }
-            BPhysicsWorld world = BPhysicsWorld.Get();
-            if (m_collisionObject != null)
-            {
-                if (isInWorld && world != null)
-                {
-                    isInWorld = false;
-                    world.RemoveCollisionObject(m_collisionObject);
-                }
-            }
+            RemoveObjectFromBulletWorld();
 
             if (transform.localScale != UnityEngine.Vector3.one)
             {
@@ -52,12 +44,12 @@ namespace BulletUnity
             if (m_collisionShape == null)
             {
                 Debug.LogError("There was no collision shape component attached to this BRigidBody. " + name);
-                return false;
+                return null;
             }
             if (!(m_collisionShape is BHeightfieldTerrainShape))
             {
                 Debug.LogError("The collision shape needs to be a BHeightfieldTerrainShape. " + name);
-                return false;
+                return null;
             }
 
             CollisionShape cs = m_collisionShape.GetCollisionShape();
@@ -83,12 +75,12 @@ namespace BulletUnity
                 m_collisionObject.WorldTransform = worldTrans;
                 m_collisionObject.CollisionFlags = m_collisionFlags;
             }
-            return true;
+            return m_collisionObject;
         }
 
         public override void SetPositionAndRotation(Vector3 position, Quaternion rotation)
         {
-            if (isInWorld)
+            if (IsInWorld)
             {
                 BulletSharp.Math.Matrix newTrans = m_collisionObject.WorldTransform;
                 newTrans.Origin = transform.position.ToBullet();

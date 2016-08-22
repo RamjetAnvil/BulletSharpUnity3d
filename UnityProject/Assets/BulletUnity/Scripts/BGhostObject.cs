@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 using System.Collections;
 using System.Collections.Generic;
 using BulletSharp;
@@ -13,16 +13,9 @@ namespace BulletUnity
             get { return (GhostObject) m_collisionObject; }   
         }
 
-        internal override bool _BuildCollisionObject()
+        protected override CollisionObject _BuildCollisionObject(BPhysicsWorld world)
         {
-            BPhysicsWorld world = BPhysicsWorld.Get();
-            if (m_collisionObject != null)
-            {
-                if (isInWorld && world != null)
-                {
-                    world.RemoveCollisionObject(m_collisionObject);
-                }
-            }
+            RemoveObjectFromBulletWorld();
 
             if (transform.localScale != UnityEngine.Vector3.one)
             {
@@ -33,7 +26,7 @@ namespace BulletUnity
             if (m_collisionShape == null)
             {
                 Debug.LogError("There was no collision shape component attached to this BRigidBody. " + name);
-                return false;
+                return null;
             }
 
             CollisionShape cs = m_collisionShape.GetCollisionShape();
@@ -61,7 +54,7 @@ namespace BulletUnity
                 m_collisionObject.CollisionShape = cs;
                 m_collisionObject.CollisionFlags = m_collisionObject.CollisionFlags | BulletSharp.CollisionFlags.NoContactResponse;
             }
-            return true;
+            return m_collisionObject;
         }
 
 

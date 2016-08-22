@@ -1,4 +1,5 @@
-﻿using UnityEngine;
+using BulletSharp;
+using UnityEngine;
 using System.Collections;
 using BulletSharp.SoftBody;
 using System;
@@ -38,20 +39,21 @@ namespace BulletUnity
             get { return _lr = _lr ?? GetComponent<LineRenderer>(); }
         }
 
-        internal override bool _BuildCollisionObject()
+        protected override CollisionObject _BuildCollisionObject(BPhysicsWorld unityWorld)
         {
             if (meshSettings.numPointsInRope < 2)
             {
                 Debug.LogError("There must be at least two points in the rope");
-                return false;
+                return null;
             }
             if (SoftBodySettings.totalMass <= 0f)
             {
                 Debug.LogError("The rope must have a positive mass");
-                return false;
+                return null;
             }
+            var world = (SoftRigidDynamicsWorld) unityWorld.world;
 
-            SoftBody m_BSoftBody = SoftBodyHelpers.CreateRope(World.WorldInfo,
+            SoftBody m_BSoftBody = SoftBodyHelpers.CreateRope(world.WorldInfo,
                 meshSettings.startPoint.ToBullet(), meshSettings.endPoint.ToBullet(), meshSettings.numPointsInRope, 0);
             m_collisionObject = m_BSoftBody;
 
@@ -96,7 +98,7 @@ namespace BulletUnity
             //m_BSoftBody.Scale(transform.localScale.ToBullet());
             
             UpdateMesh();
-            return true;
+            return m_BSoftBody;
         }
 
         /// <summary>
@@ -106,7 +108,7 @@ namespace BulletUnity
         /// <param name="rotation"></param>
         /// <param name="buildNow">Build now or configure properties and call BuildSoftBody() after</param>
         /// <returns></returns>
-        public static GameObject CreateNew(Vector3 position, Quaternion rotation, bool buildNow = true)
+        public static GameObject CreateNew(Vector3 position, Quaternion rotation)
         {
             GameObject go = new GameObject("SoftBodyRope");
             go.transform.position = position;
@@ -119,8 +121,6 @@ namespace BulletUnity
             bRope.lr.sharedMaterial = material;
 
             bRope.SoftBodySettings.ResetToSoftBodyPresets(SBSettingsPresets.Rope);
-            if (buildNow)
-                bRope._BuildCollisionObject();
             go.name = "BSoftBodyRope";
             return go;
         }

@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 using System.Collections;
 using BulletSharp;
 
@@ -24,17 +24,9 @@ namespace BulletUnity
             m_collisionFlags = BulletSharp.CollisionFlags.CharacterObject;
         }
 
-        internal override bool _BuildCollisionObject()
+        protected override CollisionObject _BuildCollisionObject(BPhysicsWorld world)
         {
-            BPhysicsWorld world = BPhysicsWorld.Get();
-            if (m_collisionObject != null)
-            {
-                if (isInWorld && world != null)
-                {
-                    isInWorld = false;
-                    world.RemoveCollisionObject(m_collisionObject);
-                }
-            }
+            RemoveObjectFromBulletWorld();
 
             if (transform.localScale != UnityEngine.Vector3.one)
             {
@@ -45,12 +37,12 @@ namespace BulletUnity
             if (m_collisionShape == null)
             {
                 Debug.LogError("There was no collision shape component attached to this BRigidBody. " + name);
-                return false;
+                return null;
             }
             if (!(m_collisionShape.GetCollisionShape() is ConvexShape))
             {
                 Debug.LogError("The CollisionShape on this BCharacterController was not a convex shape. " + name);
-                return false;
+                return null;
             }
 
             m_collisionShape.GetCollisionShape();
@@ -84,7 +76,7 @@ namespace BulletUnity
                 m_collisionObject.WorldTransform = worldTrans;
                 m_collisionObject.UserObject = this;
             }
-            return true;
+            return m_collisionObject;
         }
 
         public void Move(Vector3 displacement)
