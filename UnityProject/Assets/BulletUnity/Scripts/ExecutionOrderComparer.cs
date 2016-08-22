@@ -10,12 +10,29 @@ namespace BulletUnity
     {
         [SerializeField] private List<Entry> _executionOrderDb;
 
-        #if UNITY_EDITOR
+        private static IComparer<MonoBehaviour> _instance;
+        public static IComparer<MonoBehaviour> Default
+        {
+            get
+            {
+                if (_instance == null)
+                {
+                    _instance = FindObjectOfType<ExecutionOrderComparer>();
+                    if (_instance == null)
+                    {
+                        throw new Exception("Please add an ExecutionOrderComparer to the scene");
+                    }
+                }
+                return _instance;
+            }
+        }
+
+#if UNITY_EDITOR
         void Awake()
         {
             var monoScripts = UnityEditor.MonoImporter.GetAllRuntimeMonoScripts()
                 .Where(script => script.GetClass() != null);
-            _executionOrderDb.Clear();
+            _executionOrderDb = new List<Entry>();
             foreach (var monoScript in monoScripts)
             {
                 var executionOrder = UnityEditor.MonoImporter.GetExecutionOrder(monoScript);
@@ -25,7 +42,7 @@ namespace BulletUnity
                 }
             }
         }
-        #endif
+#endif
 
         public int Compare(MonoBehaviour x, MonoBehaviour y)
         {
