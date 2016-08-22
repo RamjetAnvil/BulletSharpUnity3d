@@ -16,10 +16,6 @@ namespace BulletUnity
                 _updateBehaviours.Add(physicsComponent as MonoBehaviour);
             }
             _updateBehaviours.Sort(ExecutionOrderComparer.Default);
-            foreach (var behaviour in _updateBehaviours)
-            {
-                Debug.Log(behaviour.GetType());
-            }
             _updateBehaviours.Reverse();
         }
 
