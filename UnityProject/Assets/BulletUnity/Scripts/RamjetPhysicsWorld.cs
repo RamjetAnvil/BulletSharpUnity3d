@@ -1,5 +1,4 @@
 ﻿using System.Collections.Generic;
-using System.Linq;
 using UnityEngine;
 using BulletSharp;
 
@@ -7,12 +6,15 @@ namespace BulletUnity
 {
     public class RamjetPhysicsWorld : MonoBehaviour
     {
+        [SerializeField] private int _poolCapacity = 100;
         [SerializeField] private BPhysicsWorld _physicsWorld;
 
+        private ObjectPool<WorldEntry> _worldEntryPool;
         private IList<WorldEntry> _registeredObjects;
 
         void Awake()
         {
+            _worldEntryPool = new ObjectPool<WorldEntry>(_poolCapacity);
             _registeredObjects = new List<WorldEntry>();
         }
 
@@ -44,19 +46,30 @@ namespace BulletUnity
             (_physicsWorld.world as DynamicsWorld).StepSimulation(deltaTime);
         }
 
+        private static readonly List<IPhysicsComponent> PhysicsComponentCache = new List<IPhysicsComponent>();
         public void AddObject(GameObject go)
         {
-            var physicsBehaviours = new List<MonoBehaviour>(go.GetComponentsInChildren<IPhysicsComponent>().Cast<MonoBehaviour>());
-            physicsBehaviours.Sort(ExecutionOrderComparer.Default);
+            var worldEntry = _worldEntryPool.Take();
+
+            worldEntry.Root = go;
+
+            PhysicsComponentCache.Clear();
+            go.GetComponentsInChildren(includeInactive: true, results: PhysicsComponentCache);
+
+            worldEntry.PhysicsComponents.Clear();
+            for (int i = 0; i < PhysicsComponentCache.Count; i++)
+            {
+                worldEntry.PhysicsComponents.Add(PhysicsComponentCache[i] as MonoBehaviour);
+            }
+            worldEntry.PhysicsComponents.Sort(ExecutionOrderComparer.Default);
 //            foreach (var behaviour in _updateBehaviours)
 //            {
 //                Debug.Log(behaviour.GetType());
 //            }
-            physicsBehaviours.Reverse();
+            worldEntry.PhysicsComponents.Reverse();
 
-            var collisionObjects = new List<BCollisionObject>(go.GetComponentsInChildren<BCollisionObject>());
-            // TODO Pool world entries
-            var worldEntry = new WorldEntry(go, physicsBehaviours, collisionObjects);
+            worldEntry.CollisionObjects.Clear();
+            go.GetComponentsInChildren(worldEntry.CollisionObjects);
 
             for (int i = 0; i < worldEntry.CollisionObjects.Count; i++)
             {
@@ -68,7 +81,7 @@ namespace BulletUnity
 
         public void RemoveObject(GameObject go)
         {
-            WorldEntry? entry = null;
+            WorldEntry entry = null;
             for (int i = _registeredObjects.Count - 1; i >= 0; i--)
             {
                 var o = _registeredObjects[i];
@@ -76,34 +89,32 @@ namespace BulletUnity
                 {
                     entry = o;
                     _registeredObjects.RemoveAt(i);
+                    _worldEntryPool.Return(entry);
                     break;
                 }
             }
 
-            if (entry.HasValue)
+            if (entry != null)
             {
-                for (int i = 0; i < entry.Value.CollisionObjects.Count; i++)
+                for (int i = 0; i < entry.CollisionObjects.Count; i++)
                 {
-                    var collisionObject = entry.Value.CollisionObjects[i];
+                    var collisionObject = entry.CollisionObjects[i];
                     collisionObject.RemoveObjectFromBulletWorld();
                 }
             }
         }
 
-        private struct WorldEntry
+        private class WorldEntry
         {
-            public readonly GameObject Root;
-            public readonly IList<MonoBehaviour> PhysicsComponents;
-            public readonly IList<BCollisionObject> CollisionObjects;
+            public GameObject Root;
+            public readonly List<MonoBehaviour> PhysicsComponents;
+            public readonly List<BCollisionObject> CollisionObjects;
 
-            public WorldEntry(
-                GameObject root,
-                IList<MonoBehaviour> physicsComponents,
-                IList<BCollisionObject> collisionObjects)
+            public WorldEntry()
             {
-                Root = root;
-                PhysicsComponents = physicsComponents;
-                CollisionObjects = collisionObjects;
+                Root = null;
+                PhysicsComponents = new List<MonoBehaviour>();
+                CollisionObjects = new List<BCollisionObject>();
             }
         }
 
