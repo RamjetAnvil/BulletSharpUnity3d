@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using UnityEngine;
 using BulletSharp;
 
@@ -15,7 +16,10 @@ namespace BulletUnity
         void Awake()
         {
             _worldEntryPool = new ObjectPool<WorldEntry>(_poolCapacity);
-            _registeredObjects = new List<WorldEntry>();
+            _registeredObjects = new List<WorldEntry>(_poolCapacity);
+
+            Debug.Assert(_physicsWorld.worldType >= BPhysicsWorld.WorldType.RigidBodyDynamics,
+                "World type must not be collision only");
         }
 
         void FixedUpdate()
@@ -70,12 +74,20 @@ namespace BulletUnity
 
             worldEntry.CollisionObjects.Clear();
             go.GetComponentsInChildren(worldEntry.CollisionObjects);
-
             for (int i = 0; i < worldEntry.CollisionObjects.Count; i++)
             {
                 var collisionObject = worldEntry.CollisionObjects[i];
                 collisionObject.AddObjectToBulletWorld(_physicsWorld);
             }
+
+            worldEntry.Constraints.Clear();
+            go.GetComponentsInChildren(worldEntry.Constraints);
+            for (int i = 0; i < worldEntry.Constraints.Count; i++)
+            {
+                var constraint = worldEntry.Constraints[i];
+                constraint.AddToBulletWorld(_physicsWorld);
+            }
+
             _registeredObjects.Add(worldEntry);
         }
 
@@ -89,18 +101,23 @@ namespace BulletUnity
                 {
                     entry = o;
                     _registeredObjects.RemoveAt(i);
-                    _worldEntryPool.Return(entry);
                     break;
                 }
             }
 
             if (entry != null)
             {
+                for (int i = 0; i < entry.Constraints.Count; i++)
+                {
+                    var constraint = entry.Constraints[i];
+                    constraint.RemoveFromBulletWorld();
+                }
                 for (int i = 0; i < entry.CollisionObjects.Count; i++)
                 {
                     var collisionObject = entry.CollisionObjects[i];
                     collisionObject.RemoveObjectFromBulletWorld();
                 }
+                _worldEntryPool.Return(entry);
             }
         }
 
@@ -109,12 +126,15 @@ namespace BulletUnity
             public GameObject Root;
             public readonly List<MonoBehaviour> PhysicsComponents;
             public readonly List<BCollisionObject> CollisionObjects;
+            public readonly List<BTypedConstraint> Constraints;
+            // TODO Also add constraints?
 
             public WorldEntry()
             {
                 Root = null;
                 PhysicsComponents = new List<MonoBehaviour>();
                 CollisionObjects = new List<BCollisionObject>();
+                Constraints = new List<BTypedConstraint>();
             }
         }
 
