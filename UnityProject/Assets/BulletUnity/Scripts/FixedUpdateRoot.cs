@@ -5,6 +5,8 @@ namespace BulletUnity
 {
     public class FixedUpdateRoot : MonoBehaviour
     {
+        [SerializeField] private ExecutionOrderComparer _executionOrderComparer;
+
         private List<MonoBehaviour> _updateBehaviours;
 
         void Awake()
@@ -14,7 +16,11 @@ namespace BulletUnity
             {
                 _updateBehaviours.Add(physicsComponent as MonoBehaviour);
             }
-            _updateBehaviours.Sort(ExecutionOrderComparer.Default);
+            _updateBehaviours.Sort(_executionOrderComparer);
+            foreach (var behaviour in _updateBehaviours)
+            {
+                Debug.Log(behaviour.GetType());
+            }
             _updateBehaviours.Reverse();
         }
 
