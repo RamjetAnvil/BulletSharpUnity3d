@@ -15,11 +15,13 @@ namespace BulletUnity
 
         void Awake()
         {
+            Debug.Assert(_physicsWorld.worldType >= BPhysicsWorld.WorldType.RigidBodyDynamics,
+                "World type must not be collision only");
+
             _worldEntryPool = new ObjectPool<WorldEntry>(_poolCapacity);
             _registeredObjects = new List<WorldEntry>(_poolCapacity);
 
-            Debug.Assert(_physicsWorld.worldType >= BPhysicsWorld.WorldType.RigidBodyDynamics,
-                "World type must not be collision only");
+            _physicsWorld._InitializePhysicsWorld();
         }
 
         void FixedUpdate()
@@ -127,7 +129,6 @@ namespace BulletUnity
             public readonly List<MonoBehaviour> PhysicsComponents;
             public readonly List<BCollisionObject> CollisionObjects;
             public readonly List<BTypedConstraint> Constraints;
-            // TODO Also add constraints?
 
             public WorldEntry()
             {
