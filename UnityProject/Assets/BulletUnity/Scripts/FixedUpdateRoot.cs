@@ -1,11 +1,12 @@
 using System.Collections.Generic;
+using UnityEditor;
 using UnityEngine;
 
 namespace BulletUnity
 {
     public class FixedUpdateRoot : MonoBehaviour
     {
-        private IList<MonoBehaviour> _updateBehaviours;
+        private List<MonoBehaviour> _updateBehaviours;
 
         void Awake()
         {
@@ -14,6 +15,12 @@ namespace BulletUnity
             {
                 _updateBehaviours.Add(physicsComponent as MonoBehaviour);
             }
+            _updateBehaviours.Sort(ExecutionOrderComparer.Default);
+            foreach (var behaviour in _updateBehaviours)
+            {
+                Debug.Log(behaviour.GetType());
+            }
+            _updateBehaviours.Reverse();
         }
 
         void FixedUpdate()
