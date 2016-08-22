@@ -1,6 +1,7 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
+using BulletSharp;
 
 namespace BulletUnity
 {
@@ -39,6 +40,8 @@ namespace BulletUnity
                     }
                 }
             }
+
+            (_physicsWorld.world as DynamicsWorld).StepSimulation(deltaTime);
         }
 
         public void AddObject(GameObject go)
