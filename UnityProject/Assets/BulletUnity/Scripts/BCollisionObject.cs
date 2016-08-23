@@ -255,19 +255,16 @@ namespace BulletUnity
 
         public virtual void SetPositionAndRotation(Vector3 position, Quaternion rotation)
         {
+            transform.position = position;
+            transform.rotation = rotation;
+
             if (_isInWorld)
             {
                 BulletSharp.Math.Matrix newTrans = m_collisionObject.WorldTransform;
                 BulletSharp.Math.Quaternion q = rotation.ToBullet();
                 BulletSharp.Math.Matrix.RotationQuaternion(ref q, out newTrans);
-                newTrans.Origin = transform.position.ToBullet();
+                newTrans.Origin = position.ToBullet();
                 m_collisionObject.WorldTransform = newTrans;
-                transform.position = position;
-                transform.rotation = rotation;
-            } else
-            {
-                transform.position = position;
-                transform.rotation = rotation;
             }
         }
 
