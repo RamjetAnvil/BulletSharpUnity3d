@@ -238,21 +238,6 @@ namespace BulletUnity
             GC.SuppressFinalize(this);
         }
         
-        public virtual void SetPosition(Vector3 position)
-        {
-            if (_isInWorld)
-            {
-                BulletSharp.Math.Matrix newTrans = m_collisionObject.WorldTransform;
-                newTrans.Origin = position.ToBullet();
-                m_collisionObject.WorldTransform = newTrans;
-                transform.position = position;
-            } else
-            {
-                transform.position = position;
-            }
-
-        }
-
         public virtual void SetPositionAndRotation(Vector3 position, Quaternion rotation)
         {
             transform.position = position;
@@ -268,23 +253,15 @@ namespace BulletUnity
             }
         }
 
-        public virtual void SetRotation(Quaternion rotation)
+        public virtual void SetPosition(Vector3 position)
         {
-            if (_isInWorld)
-            {
-                BulletSharp.Math.Matrix newTrans = m_collisionObject.WorldTransform;
-                BulletSharp.Math.Quaternion q = rotation.ToBullet();
-                BulletSharp.Math.Matrix.RotationQuaternion(ref q, out newTrans);
-                newTrans.Origin = transform.position.ToBullet();
-                m_collisionObject.WorldTransform = newTrans;
-                transform.rotation = rotation;
-            }
-            else
-            {
-                transform.rotation = rotation;
-            }
+            SetPositionAndRotation(position, transform.rotation);
         }
 
+        public virtual void SetRotation(Quaternion rotation)
+        {
+            SetPositionAndRotation(transform.position, rotation);
+        }
 
         private class CollisionObjectRegistrar : IWorldRegistrar 
         {
