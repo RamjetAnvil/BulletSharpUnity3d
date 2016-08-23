@@ -277,11 +277,9 @@ namespace BulletUnity {
             DrawTransformGizmos(transform, m_localConstraintPoint, m_localConstraintAxisX, m_localConstraintAxisY);
         }
 
-
-
         public void AddToBulletWorld(BPhysicsWorld unityWorld)
         {
-            if (!m_isInWorld)
+            if (!m_isInWorld && enabled)
             {
                 Debug.Assert(m_thisRigidBody.IsInWorld, "Constrained bodies must be added to world before constraints");
                 if (m_constraintType == ConstraintType.constrainToAnotherBody)
