@@ -15,7 +15,7 @@ namespace BulletUnity {
 
         //called by Physics World just before constraint is added to world.
         //the current constraint properties are used to rebuild the constraint.
-        internal override bool _BuildConstraint(BPhysicsWorld world) {
+        protected override bool _BuildConstraint(BPhysicsWorld world) {
             if (m_constraintType == ConstraintType.constrainToPointInSpace)
             {
                 Debug.LogError("A FixedConstraint can only be constrained to another object.");

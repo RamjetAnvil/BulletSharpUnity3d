@@ -110,7 +110,7 @@ namespace BulletUnity {
 
         //called by Physics World just before constraint is added to world.
         //the current constraint properties are used to rebuild the constraint.
-        internal override bool _BuildConstraint(BPhysicsWorld world) {
+        protected override bool _BuildConstraint(BPhysicsWorld world) {
             RemoveFromBulletWorld();
 
             BRigidBody targetRigidBodyA = GetComponent<BRigidBody>();

@@ -300,6 +300,7 @@ namespace BulletUnity {
                 }
                 m_isInWorld = true;
             }
+            _currentWorld = unityWorld;
         }
 
         public void RemoveFromBulletWorld()
@@ -320,11 +321,15 @@ namespace BulletUnity {
             Dispose(false);
         }
 
-        public void OnEnable()
+        void Awake()
         {
             m_thisRigidBody = GetComponent<BRigidBody>();
-            if (m_thisRigidBody == null) Debug.LogError("Constraint must be added to a game object with a BRigidBody.");
-            if (_currentWorld != null)
+            Debug.Assert(m_thisRigidBody != null, "Constraint must be added to a game object with a BRigidBody.");
+        }
+
+        public void OnEnable()
+        {
+            if (_currentWorld != null && !m_isInWorld)
             {
                 AddToBulletWorld(_currentWorld);
             }
@@ -351,7 +356,7 @@ namespace BulletUnity {
 
         //called by Physics World just before constraint is added to world.
         //the current constraint properties are used to rebuild the constraint.
-        internal abstract bool _BuildConstraint(BPhysicsWorld world);
+        protected abstract bool _BuildConstraint(BPhysicsWorld world);
 
         public virtual TypedConstraint GetConstraint()
         {
