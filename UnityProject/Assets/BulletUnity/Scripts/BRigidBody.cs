@@ -489,6 +489,28 @@ namespace BulletUnity {
             }
         }
 
+	    public RigidbodyState GetState()
+	    {
+	        return new RigidbodyState
+	        {
+                Position = transform.position,
+	            Rotation = transform.rotation,
+	            Velocity = velocity,
+	            AngularVelocity = angularVelocity
+	        };
+	    }
+
+	    public void SetState(RigidbodyState state)
+	    {
+	        SetState(ref state);
+	    }
+
+	    public void SetState(ref RigidbodyState state)
+	    {
+	        SetPositionAndRotation(state.Position, state.Rotation);
+	        velocity = state.Velocity;
+	        angularVelocity = state.AngularVelocity;
+	    }
 
         private class RigidbodyRegistrar : IWorldRegistrar 
         {

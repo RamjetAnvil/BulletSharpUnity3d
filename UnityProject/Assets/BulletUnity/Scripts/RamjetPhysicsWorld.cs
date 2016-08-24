@@ -11,7 +11,7 @@ namespace BulletUnity
         [SerializeField] private BPhysicsWorld _physicsWorld;
 
         private ObjectPool<WorldEntry> _worldEntryPool;
-        private IList<WorldEntry> _registeredObjects;
+        private List<WorldEntry> _registeredObjects;
 
         void Awake()
         {
@@ -123,9 +123,10 @@ namespace BulletUnity
             }
         }
 
+        [Serializable]
         private class WorldEntry
         {
-            public GameObject Root;
+            [SerializeField] public GameObject Root;
             public readonly List<MonoBehaviour> PhysicsComponents;
             public readonly List<BCollisionObject> CollisionObjects;
             public readonly List<BTypedConstraint> Constraints;

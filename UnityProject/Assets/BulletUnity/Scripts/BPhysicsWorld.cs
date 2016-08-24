@@ -341,16 +341,16 @@ namespace BulletUnity
                 _ddWorld = (DiscreteDynamicsWorld)m_world;
             }
             //Add a BPhysicsWorldLateHelper component to call FixedUpdate
-            lateUpdateHelper = GetComponent<BPhysicsWorldLateHelper>();
-            if (lateUpdateHelper == null)
-            {
-                lateUpdateHelper = gameObject.AddComponent<BPhysicsWorldLateHelper>();
-            }
-            lateUpdateHelper.m_world = world;
-            lateUpdateHelper.m_ddWorld = _ddWorld;
-            lateUpdateHelper.m_physicsWorld = this;
-            lateUpdateHelper.m__frameCount = 0;
-            lateUpdateHelper.m_lastSimulationStepTime = 0;
+//            lateUpdateHelper = GetComponent<BPhysicsWorldLateHelper>();
+//            if (lateUpdateHelper == null)
+//            {
+//                lateUpdateHelper = gameObject.AddComponent<BPhysicsWorldLateHelper>();
+//            }
+//            lateUpdateHelper.m_world = world;
+//            lateUpdateHelper.m_ddWorld = _ddWorld;
+//            lateUpdateHelper.m_physicsWorld = this;
+//            lateUpdateHelper.m__frameCount = 0;
+//            lateUpdateHelper.m_lastSimulationStepTime = 0;
         }
 
         /*
