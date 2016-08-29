@@ -279,6 +279,10 @@ namespace BulletUnity {
 
         public void AddToBulletWorld(BPhysicsWorld unityWorld)
         {
+            // Make sure rigidbody ref is resolved.
+            // Todo: either object oriented or data oriented, but both makes a mess
+            Awake();
+
             if (!m_isInWorld && enabled)
             {
                 Debug.Assert(m_thisRigidBody.IsInWorld, "Constrained bodies must be added to world before constraints");
@@ -321,7 +325,9 @@ namespace BulletUnity {
 
         void Awake()
         {
-            m_thisRigidBody = GetComponent<BRigidBody>();
+            if (!m_thisRigidBody) {
+                m_thisRigidBody = GetComponent<BRigidBody>();
+            }
             Debug.Assert(m_thisRigidBody != null, "Constraint must be added to a game object with a BRigidBody.");
         }
 
