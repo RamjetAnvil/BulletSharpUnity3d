@@ -113,6 +113,61 @@ namespace BulletUnity {
             }
         }
 
+        /* Work in progress Motor section
+         * Todo: SetTargetInConstraintSpace
+         */
+        [Header("Motor")]
+        [SerializeField]
+        protected bool m_motorEnabled;
+
+        public bool motorEnabled {
+            get { return m_motorEnabled; }
+            set {
+                m_motorEnabled = value;
+                if (m_constraintPtr != null)
+                {
+                    ((ConeTwistConstraint)m_constraintPtr).EnableMotor(value);
+                }
+            }
+        }
+
+        [SerializeField]
+        protected float m_maxMotorImpulse = 0f;
+        public float maxMotorImpulse {
+            get { return m_maxMotorImpulse; }
+            set {
+                m_maxMotorImpulse = value;
+                if (m_constraintPtr != null)
+                {
+                    ((ConeTwistConstraint)m_constraintPtr).MaxMotorImpulse = value;
+                }
+            }
+        }
+
+        public bool IsMotorEnabled()
+        {
+            if (m_constraintPtr != null)
+            {
+                return ((ConeTwistConstraint)m_constraintPtr).IsMotorEnabled;
+            }
+            Debug.LogError("Joint not initialized");
+            return false;
+        }
+
+        [SerializeField]
+        protected Quaternion m_motorTarget = Quaternion.identity;
+        public Quaternion motorTarget {
+            get { return m_motorTarget; }
+            set {
+                m_motorTarget = value;
+                if (m_constraintPtr != null)
+                {
+                    ((ConeTwistConstraint)m_constraintPtr).MotorTarget = value.ToBullet();
+                    //                    ((ConeTwistConstraint)m_constraintPtr).SetMotorTargetInConstraintSpace(value.ToBullet());
+                }
+            }
+        }
+
         //called by Physics World just before constraint is added to world.
         //the current constraint properties are used to rebuild the constraint.
         protected override bool _BuildConstraint(BPhysicsWorld world) {
@@ -168,6 +223,11 @@ namespace BulletUnity {
             ConeTwistConstraint sl = (ConeTwistConstraint)m_constraintPtr;
 
             sl.SetLimit(m_swingSpan1Radians, m_swingSpan2Radians, m_twistSpanRadians, m_softness, m_biasFactor, m_relaxationFactor);
+
+            // Motor
+            sl.EnableMotor(m_motorEnabled);
+            sl.MaxMotorImpulse = maxMotorImpulse;
+
             m_constraintPtr.Userobject = this;
             m_constraintPtr.DebugDrawSize = m_debugDrawSize;
             m_constraintPtr.BreakingImpulseThreshold = m_breakingImpulseThreshold;
