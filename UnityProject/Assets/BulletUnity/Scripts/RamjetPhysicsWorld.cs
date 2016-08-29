@@ -55,42 +55,82 @@ namespace BulletUnity
         private static readonly List<IPhysicsComponent> PhysicsComponentCache = new List<IPhysicsComponent>();
         public void AddObject(GameObject go)
         {
-            var worldEntry = _worldEntryPool.Take();
+            var entry = _worldEntryPool.Take();
 
-            worldEntry.Root = go;
+            entry.Root = go;
 
             PhysicsComponentCache.Clear();
             go.GetComponentsInChildren(includeInactive: true, results: PhysicsComponentCache);
 
-            worldEntry.PhysicsComponents.Clear();
+            entry.PhysicsComponents.Clear();
             for (int i = 0; i < PhysicsComponentCache.Count; i++)
             {
-                worldEntry.PhysicsComponents.Add(PhysicsComponentCache[i] as MonoBehaviour);
+                entry.PhysicsComponents.Add(PhysicsComponentCache[i] as MonoBehaviour);
             }
-            worldEntry.PhysicsComponents.Sort(ExecutionOrderComparer.Default);
-//            foreach (var behaviour in _updateBehaviours)
-//            {
-//                Debug.Log(behaviour.GetType());
-//            }
-            worldEntry.PhysicsComponents.Reverse();
+            entry.PhysicsComponents.Sort(ExecutionOrderComparer.Default);
+            entry.PhysicsComponents.Reverse();
 
-            worldEntry.CollisionObjects.Clear();
-            go.GetComponentsInChildren(worldEntry.CollisionObjects);
-            for (int i = 0; i < worldEntry.CollisionObjects.Count; i++)
+            entry.CollisionObjects.Clear();
+            go.GetComponentsInChildren(entry.CollisionObjects);
+            for (int i = 0; i < entry.CollisionObjects.Count; i++)
             {
-                var collisionObject = worldEntry.CollisionObjects[i];
+                var collisionObject = entry.CollisionObjects[i];
                 collisionObject.AddObjectToBulletWorld(_physicsWorld);
             }
 
-            worldEntry.Constraints.Clear();
-            go.GetComponentsInChildren(worldEntry.Constraints);
-            for (int i = 0; i < worldEntry.Constraints.Count; i++)
+            entry.Constraints.Clear();
+            go.GetComponentsInChildren(entry.Constraints);
+            for (int i = 0; i < entry.Constraints.Count; i++)
             {
-                var constraint = worldEntry.Constraints[i];
+                var constraint = entry.Constraints[i];
                 constraint.AddToBulletWorld(_physicsWorld);
             }
 
-            _registeredObjects.Add(worldEntry);
+            _registeredObjects.Add(entry);
+        }
+
+        private static IList<WorldEntry> _groupedEntries = new List<WorldEntry>(128);
+        public void AddObjects(IList<GameObject> gameObjects) {
+            // Two loops, add collision objects, add constraints
+
+            _groupedEntries.Clear();
+
+            for (int i = 0; i < gameObjects.Count; i++) {
+                var go = gameObjects[i];
+
+                var entry = _worldEntryPool.Take();
+                entry.Constraints.Clear();
+                entry.CollisionObjects.Clear();
+
+                entry.Root = go;
+
+                PhysicsComponentCache.Clear();
+                go.GetComponentsInChildren(includeInactive: true, results: PhysicsComponentCache);
+
+                go.GetComponentsInChildren(entry.CollisionObjects);
+                for (int j = 0; j < entry.CollisionObjects.Count; j++) {
+                    var collisionObject = entry.CollisionObjects[j];
+                    collisionObject.AddObjectToBulletWorld(_physicsWorld);
+                }
+
+                _groupedEntries.Add(entry);
+            }
+
+            for (int i = 0; i < gameObjects.Count; i++)
+            {
+                var entry = _groupedEntries[i];
+                var go = entry.Root;
+
+                
+                go.GetComponentsInChildren(entry.Constraints);
+                for (int j = 0; j < entry.Constraints.Count; j++)
+                {
+                    var constraint = entry.Constraints[j];
+                    constraint.AddToBulletWorld(_physicsWorld);
+                }
+            }
+
+            _registeredObjects.AddRange(_groupedEntries);
         }
 
         public void RemoveObject(GameObject go)
