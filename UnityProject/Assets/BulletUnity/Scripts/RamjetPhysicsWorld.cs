@@ -89,7 +89,7 @@ namespace BulletUnity
             _registeredObjects.Add(entry);
         }
 
-        private static IList<WorldEntry> _groupedEntries = new List<WorldEntry>(128);
+        private static readonly IList<WorldEntry> _groupedEntries = new List<WorldEntry>(128);
         public void AddObjects(IList<GameObject> gameObjects) {
             // Two loops, add collision objects, add constraints
 
@@ -101,11 +101,18 @@ namespace BulletUnity
                 var entry = _worldEntryPool.Take();
                 entry.Constraints.Clear();
                 entry.CollisionObjects.Clear();
+                entry.PhysicsComponents.Clear();
 
                 entry.Root = go;
 
                 PhysicsComponentCache.Clear();
                 go.GetComponentsInChildren(includeInactive: true, results: PhysicsComponentCache);
+
+                for (int j = 0; j < PhysicsComponentCache.Count; j++) {
+                    entry.PhysicsComponents.Add(PhysicsComponentCache[j] as MonoBehaviour);
+                }
+                entry.PhysicsComponents.Sort(ExecutionOrderComparer.Default); // Todo combine sort/reverse?
+                entry.PhysicsComponents.Reverse();
 
                 go.GetComponentsInChildren(entry.CollisionObjects);
                 for (int j = 0; j < entry.CollisionObjects.Count; j++) {
