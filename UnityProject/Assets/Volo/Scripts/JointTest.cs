@@ -8,7 +8,6 @@ public class JointTest : MonoBehaviour, IPhysicsComponent {
     void Start () {
         _joint.motorEnabled = true;
         _joint.maxMotorImpulse = _maxMotorForce;
-        _joint.motorTarget = Quaternion.identity; // Todo: bug, this is not initialized to identity automatically, messing up physics
     }
 
     public void PhysicsUpdate(float deltaTime) {
@@ -16,9 +15,6 @@ public class JointTest : MonoBehaviour, IPhysicsComponent {
         float inputSwing = Input.GetAxis("Vertical");
         inputTwist = inputTwist * 66f;
         inputSwing = inputSwing * 45f;
-
-
-        Debug.Log(inputTwist);
 
         Quaternion inputRotation = Quaternion.Euler(inputTwist, inputSwing, 0f);
 

@@ -227,6 +227,7 @@ namespace BulletUnity {
             // Motor
             sl.EnableMotor(m_motorEnabled);
             sl.MaxMotorImpulse = maxMotorImpulse;
+            sl.MotorTarget = motorTarget.ToBullet();
 
             m_constraintPtr.Userobject = this;
             m_constraintPtr.DebugDrawSize = m_debugDrawSize;
