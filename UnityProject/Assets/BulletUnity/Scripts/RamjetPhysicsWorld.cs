@@ -133,6 +133,11 @@ namespace BulletUnity
             _registeredObjects.AddRange(_groupedEntries);
         }
 
+        /* Todo: 
+         * group remove
+         * testing of actual use cases of grouped and individual adds and removes
+         */
+
         public void RemoveObject(GameObject go)
         {
             WorldEntry entry = null;
