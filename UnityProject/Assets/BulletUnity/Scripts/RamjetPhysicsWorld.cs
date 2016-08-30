@@ -15,6 +15,8 @@ namespace BulletUnity
         private ObjectPool<WorldEntry> _worldEntryPool;
         private List<WorldEntry> _registeredObjects;
 
+        private DynamicsWorld _world;
+
         void Awake()
         {
             Debug.Assert(_physicsWorld.worldType >= BPhysicsWorld.WorldType.RigidBodyDynamics,
@@ -24,15 +26,19 @@ namespace BulletUnity
             _registeredObjects = new List<WorldEntry>(_poolCapacity);
 
             _physicsWorld._InitializePhysicsWorld();
+
+            // http://bulletphysics.org/mediawiki-1.5.8/index.php/Simulation_Tick_Callbacks
+            _world = (DynamicsWorld)_physicsWorld.world;
+            _world.SetInternalTickCallback(OnWorldPreTick, _world.WorldUserInfo, true);
         }
 
         void Update()
         {
-            SimulateStep(Time.deltaTime);
+            _world.StepSimulation(Time.deltaTime, _maxSubSteps, _fixedTimeStep);
         }
 
         // TODO Add simulate step overloads
-        public void SimulateStep(float deltaTime)
+        private void OnWorldPreTick(DynamicsWorld world, float timeStep)
         {
             for (int i = 0; i < _registeredObjects.Count; i++)
             {
@@ -46,12 +52,10 @@ namespace BulletUnity
                     }
                     else if (physicsBehaviour.enabled)
                     {
-                        (physicsBehaviour as IPhysicsComponent).PhysicsUpdate(deltaTime);
+                        (physicsBehaviour as IPhysicsComponent).PhysicsUpdate(timeStep); // Todo: why the cast?
                     }
                 }
             }
-
-            (_physicsWorld.world as DynamicsWorld).StepSimulation(deltaTime, _maxSubSteps, _fixedTimeStep);
         }
 
         private static readonly List<IPhysicsComponent> PhysicsComponentCache = new List<IPhysicsComponent>();
