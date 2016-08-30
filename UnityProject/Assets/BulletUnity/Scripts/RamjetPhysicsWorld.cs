@@ -89,14 +89,19 @@ namespace BulletUnity
             _registeredObjects.Add(entry);
         }
 
+        /* Todo: Maybe this should return a list of WorldEntries for easy removal later?
+         * Would save having to match list of GOs to list of WEs when doing group remove.
+         * Means: make WorldEntry public, pass in a preallocated list as caller of AddObjects
+         */
+
         private static readonly IList<WorldEntry> _groupedEntries = new List<WorldEntry>(128);
-        public void AddObjects(IList<GameObject> gameObjects) {
+        public void AddObjects(IList<GameObject> objects) {
             // Two loops, add collision objects, add constraints
 
             _groupedEntries.Clear();
 
-            for (int i = 0; i < gameObjects.Count; i++) {
-                var go = gameObjects[i];
+            for (int i = 0; i < objects.Count; i++) {
+                var go = objects[i];
 
                 var entry = _worldEntryPool.Take();
                 entry.Constraints.Clear();
@@ -123,7 +128,7 @@ namespace BulletUnity
                 _groupedEntries.Add(entry);
             }
 
-            for (int i = 0; i < gameObjects.Count; i++)
+            for (int i = 0; i < objects.Count; i++)
             {
                 var entry = _groupedEntries[i];
                 var go = entry.Root;
@@ -143,21 +148,52 @@ namespace BulletUnity
         /* Todo: 
          * group remove
          * testing of actual use cases of grouped and individual adds and removes
+         * performance improvements for add/remove 
+         *  - by giving callers handles to WorldEntries, and collections of them
+         *  - by taking advantage of the fact that groups will be layed out contiguously as a sub-range in the _registeredEntries list, so all you need is start/end indices
          */
+
+        public void RemoveObjects(IList<GameObject> objects)
+        {
+            _groupedEntries.Clear();
+
+            for (int i = 0; i < objects.Count; i++) {
+                var go = objects[i];
+                WorldEntry entry;
+                FindWorldEntry(go, out entry);
+                if (entry != null) {
+                    _groupedEntries.Add(entry);
+                }
+            }
+
+            // Remove constraints
+            for (int i = 0; i < _groupedEntries.Count; i++) {
+                var entry = _groupedEntries[i];
+                for (int j = 0; j < entry.Constraints.Count; j++)
+                {
+                    var constraint = entry.Constraints[j];
+                    constraint.RemoveFromBulletWorld();
+                }
+            }
+
+            // Remove collisionobjects
+            for (int i = 0; i < _groupedEntries.Count; i++)
+            {
+                var entry = _groupedEntries[i];
+                for (int j = 0; j < entry.CollisionObjects.Count; j++)
+                {
+                    var collisionObject = entry.CollisionObjects[j];
+                    collisionObject.RemoveObjectFromBulletWorld();
+                }
+
+                _worldEntryPool.Return(entry);
+            }
+        }
 
         public void RemoveObject(GameObject go)
         {
-            WorldEntry entry = null;
-            for (int i = _registeredObjects.Count - 1; i >= 0; i--)
-            {
-                var o = _registeredObjects[i];
-                if (o.Root == go)
-                {
-                    entry = o;
-                    _registeredObjects.RemoveAt(i);
-                    break;
-                }
-            }
+            WorldEntry entry;
+            int index = FindWorldEntry(go, out entry);
 
             if (entry != null)
             {
@@ -173,7 +209,23 @@ namespace BulletUnity
                 }
                 _worldEntryPool.Return(entry);
             }
+
+            _registeredObjects.RemoveAt(index);
         }
+
+        private int FindWorldEntry(GameObject go, out WorldEntry entry) {
+            for (int i = 0; i < _registeredObjects.Count; i++) {
+                var o = _registeredObjects[i];
+                if (o.Root == go)
+                {
+                    entry = o;
+                    return i;
+                }
+            }
+            entry = null;
+            return -1;
+        }
+
 
         [Serializable]
         private class WorldEntry
