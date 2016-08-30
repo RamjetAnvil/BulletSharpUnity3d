@@ -9,6 +9,8 @@ namespace BulletUnity
     {
         [SerializeField] private int _poolCapacity = 100;
         [SerializeField] private BPhysicsWorld _physicsWorld;
+        [SerializeField] private int _maxSubSteps = 5;
+        [SerializeField] private float _fixedTimeStep = 0.01f;
 
         private ObjectPool<WorldEntry> _worldEntryPool;
         private List<WorldEntry> _registeredObjects;
@@ -24,9 +26,9 @@ namespace BulletUnity
             _physicsWorld._InitializePhysicsWorld();
         }
 
-        void FixedUpdate()
+        void Update()
         {
-            SimulateStep(Time.fixedDeltaTime);
+            SimulateStep(Time.deltaTime);
         }
 
         // TODO Add simulate step overloads
@@ -49,7 +51,7 @@ namespace BulletUnity
                 }
             }
 
-            (_physicsWorld.world as DynamicsWorld).StepSimulation(deltaTime);
+            (_physicsWorld.world as DynamicsWorld).StepSimulation(deltaTime, _maxSubSteps, _fixedTimeStep);
         }
 
         private static readonly List<IPhysicsComponent> PhysicsComponentCache = new List<IPhysicsComponent>();
@@ -146,8 +148,6 @@ namespace BulletUnity
         }
 
         /* Todo: 
-         * group remove
-         * testing of actual use cases of grouped and individual adds and removes
          * performance improvements for add/remove 
          *  - by giving callers handles to WorldEntries, and collections of them
          *  - by taking advantage of the fact that groups will be layed out contiguously as a sub-range in the _registeredEntries list, so all you need is start/end indices
