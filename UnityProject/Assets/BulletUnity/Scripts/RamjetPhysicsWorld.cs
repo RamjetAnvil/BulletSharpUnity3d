@@ -58,7 +58,7 @@ namespace BulletUnity
                 {
                     var physicsBehaviour = worldEntry.PhysicsObject.PhysicsComponents[j];
 
-                    Assert.IsTrue(physicsBehaviour != null, "PhysicsBehaviours may not be removed while registered to a physics world");
+                    Assert.IsNotNull(physicsBehaviour, "PhysicsBehaviours may not be removed while registered to a physics world");
 
                     if (physicsBehaviour.enabled)
                     {
