@@ -2,17 +2,19 @@
 using System.Collections.Generic;
 using UnityEngine;
 using BulletSharp;
+using UnityEngine.Assertions;
 
 namespace BulletUnity
 {
     public class RamjetPhysicsWorld : MonoBehaviour
     {
-        [SerializeField] private int _poolCapacity = 100;
+        [SerializeField] private int _maxObjects = 1024;
         [SerializeField] private BPhysicsWorld _physicsWorld;
         [SerializeField] private int _maxSubSteps = 5;
         [SerializeField] private float _fixedTimeStep = 0.01f;
 
         private ObjectPool<WorldEntry> _worldEntryPool;
+        private IDictionary<int, WorldEntry> _registeredWorldEntries;
         private List<WorldEntry> _registeredObjects;
 
         private DynamicsWorld _world;
@@ -22,8 +24,13 @@ namespace BulletUnity
             Debug.Assert(_physicsWorld.worldType >= BPhysicsWorld.WorldType.RigidBodyDynamics,
                 "World type must not be collision only");
 
-            _worldEntryPool = new ObjectPool<WorldEntry>(_poolCapacity);
-            _registeredObjects = new List<WorldEntry>(_poolCapacity);
+            _worldEntryPool = new ObjectPool<WorldEntry>(_maxObjects);
+            for (int i = 0; i < _maxObjects; i++) {
+                var entryId = i;
+                _worldEntryPool.Return(new WorldEntry(entryId, RemoveObject));
+            }
+            _registeredWorldEntries = new ArrayDictionary<int, WorldEntry>(_maxObjects);
+            _registeredObjects = new List<WorldEntry>(_maxObjects);
 
             _physicsWorld._InitializePhysicsWorld();
 
@@ -37,97 +44,74 @@ namespace BulletUnity
             _world.StepSimulation(Time.deltaTime, _maxSubSteps, _fixedTimeStep);
         }
 
-        // TODO Add simulate step overloads
+        public void StepSimulation(float deltaTime)
+        {
+            _world.StepSimulation(deltaTime, _maxSubSteps, _fixedTimeStep);
+        }
+
         private void OnWorldPreTick(DynamicsWorld world, float timeStep)
         {
             for (int i = 0; i < _registeredObjects.Count; i++)
             {
                 var worldEntry = _registeredObjects[i];
-                for (int j = 0; j < worldEntry.PhysicsComponents.Count; j++)
+                for (int j = 0; j < worldEntry.PhysicsObject.PhysicsComponents.Count; j++)
                 {
-                    var physicsBehaviour = worldEntry.PhysicsComponents[j];
-                    if (physicsBehaviour == null)
+                    var physicsBehaviour = worldEntry.PhysicsObject.PhysicsComponents[j];
+
+                    Assert.IsTrue(physicsBehaviour != null, "PhysicsBehaviours may not be removed while registered to a physics world");
+
+                    if (physicsBehaviour.enabled)
                     {
-                        worldEntry.PhysicsComponents.RemoveAt(i);
-                    }
-                    else if (physicsBehaviour.enabled)
-                    {
-                        (physicsBehaviour as IPhysicsComponent).PhysicsUpdate(timeStep); // Todo: why the cast?
+                        (physicsBehaviour as IPhysicsComponent).PhysicsUpdate(timeStep);
                     }
                 }
             }
         }
 
+        // TODO If we really want to make this fast we need to decouple the creation of world entries
+        //      from the registration/deregistration. That way we don't do unnecessary GetComponent() calls
+
         private static readonly List<IPhysicsComponent> PhysicsComponentCache = new List<IPhysicsComponent>();
-        public void AddObject(GameObject go)
+        public IWorldEntry AddObject(PhysicsObject po)
         {
-            var entry = _worldEntryPool.Take();
-
-            entry.Root = go;
-
-            PhysicsComponentCache.Clear();
-            go.GetComponentsInChildren(includeInactive: true, results: PhysicsComponentCache);
-
-            entry.PhysicsComponents.Clear();
-            for (int i = 0; i < PhysicsComponentCache.Count; i++)
+            for (int i = 0; i < po.CollisionObjects.Count; i++)
             {
-                entry.PhysicsComponents.Add(PhysicsComponentCache[i] as MonoBehaviour);
-            }
-            entry.PhysicsComponents.Sort(ExecutionOrderComparer.Default);
-            entry.PhysicsComponents.Reverse();
-
-            entry.CollisionObjects.Clear();
-            go.GetComponentsInChildren(entry.CollisionObjects);
-            for (int i = 0; i < entry.CollisionObjects.Count; i++)
-            {
-                var collisionObject = entry.CollisionObjects[i];
+                var collisionObject = po.CollisionObjects[i];
                 collisionObject.AddObjectToBulletWorld(_physicsWorld);
             }
 
-            entry.Constraints.Clear();
-            go.GetComponentsInChildren(entry.Constraints);
-            for (int i = 0; i < entry.Constraints.Count; i++)
+            for (int i = 0; i < po.Constraints.Count; i++)
             {
-                var constraint = entry.Constraints[i];
+                var constraint = po.Constraints[i];
                 constraint.AddToBulletWorld(_physicsWorld);
             }
 
+            var entry = _worldEntryPool.Take();
+
+            entry.PhysicsObject = po;
+
+            _registeredWorldEntries[entry.Id] = entry;
             _registeredObjects.Add(entry);
+
+            return entry;
         }
 
-        /* Todo: Maybe this should return a list of WorldEntries for easy removal later?
-         * Would save having to match list of GOs to list of WEs when doing group remove.
-         * Means: make WorldEntry public, pass in a preallocated list as caller of AddObjects
-         */
-
         private static readonly IList<WorldEntry> _groupedEntries = new List<WorldEntry>(128);
-        public void AddObjects(IList<GameObject> objects) {
+        public void AddObjects(IList<PhysicsObject> objects, IList<IWorldEntry> worldEntries) {
             // Two loops, add collision objects, add constraints
 
             _groupedEntries.Clear();
 
-            for (int i = 0; i < objects.Count; i++) {
-                var go = objects[i];
+            for (int i = 0; i < objects.Count; i++)
+            {
+                var po = objects[i];
 
                 var entry = _worldEntryPool.Take();
-                entry.Constraints.Clear();
-                entry.CollisionObjects.Clear();
-                entry.PhysicsComponents.Clear();
+                entry.PhysicsObject = po;
 
-                entry.Root = go;
-
-                PhysicsComponentCache.Clear();
-                go.GetComponentsInChildren(includeInactive: true, results: PhysicsComponentCache);
-
-                for (int j = 0; j < PhysicsComponentCache.Count; j++) {
-                    entry.PhysicsComponents.Add(PhysicsComponentCache[j] as MonoBehaviour);
-                }
-                entry.PhysicsComponents.Sort(ExecutionOrderComparer.Default); // Todo combine sort/reverse?
-                entry.PhysicsComponents.Reverse();
-
-                go.GetComponentsInChildren(entry.CollisionObjects);
-                for (int j = 0; j < entry.CollisionObjects.Count; j++) {
-                    var collisionObject = entry.CollisionObjects[j];
+                var collisionObjects = po.CollisionObjects;
+                for (int j = 0; j < collisionObjects.Count; j++) {
+                    var collisionObject = collisionObjects[j];
                     collisionObject.AddObjectToBulletWorld(_physicsWorld);
                 }
 
@@ -137,114 +121,82 @@ namespace BulletUnity
             for (int i = 0; i < objects.Count; i++)
             {
                 var entry = _groupedEntries[i];
-                var go = entry.Root;
 
-                
-                go.GetComponentsInChildren(entry.Constraints);
-                for (int j = 0; j < entry.Constraints.Count; j++)
+                var constraints = entry.PhysicsObject.Constraints;
+                for (int j = 0; j < constraints.Count; j++)
                 {
-                    var constraint = entry.Constraints[j];
+                    var constraint = constraints[j];
                     constraint.AddToBulletWorld(_physicsWorld);
                 }
             }
 
             _registeredObjects.AddRange(_groupedEntries);
-        }
 
-        /* Todo: 
-         * performance improvements for add/remove 
-         *  - by giving callers handles to WorldEntries, and collections of them
-         *  - by taking advantage of the fact that groups will be layed out contiguously as a sub-range in the _registeredEntries list, so all you need is start/end indices
-         */
-
-        public void RemoveObjects(IList<GameObject> objects)
-        {
-            _groupedEntries.Clear();
-
-            for (int i = 0; i < objects.Count; i++) {
-                var go = objects[i];
-                WorldEntry entry;
-                FindWorldEntry(go, out entry);
-                if (entry != null) {
-                    _groupedEntries.Add(entry);
-                }
-            }
-
-            // Remove constraints
-            for (int i = 0; i < _groupedEntries.Count; i++) {
-                var entry = _groupedEntries[i];
-                for (int j = 0; j < entry.Constraints.Count; j++)
-                {
-                    var constraint = entry.Constraints[j];
-                    constraint.RemoveFromBulletWorld();
-                }
-            }
-
-            // Remove collisionobjects
             for (int i = 0; i < _groupedEntries.Count; i++)
             {
-                var entry = _groupedEntries[i];
-                for (int j = 0; j < entry.CollisionObjects.Count; j++)
-                {
-                    var collisionObject = entry.CollisionObjects[j];
-                    collisionObject.RemoveObjectFromBulletWorld();
-                }
-
-                _worldEntryPool.Return(entry);
+                var worldEntry = _groupedEntries[i];
+                _registeredWorldEntries[worldEntry.Id] = worldEntry;
+                worldEntries.Add(worldEntry);
             }
         }
-
-        public void RemoveObject(GameObject go)
+        
+        public void RemoveObjects(IList<IWorldEntry> entries)
         {
-            WorldEntry entry;
-            int index = FindWorldEntry(go, out entry);
-
-            if (entry != null)
+            for (int i = 0; i < entries.Count; i++)
             {
-                for (int i = 0; i < entry.Constraints.Count; i++)
-                {
-                    var constraint = entry.Constraints[i];
-                    constraint.RemoveFromBulletWorld();
-                }
-                for (int i = 0; i < entry.CollisionObjects.Count; i++)
-                {
-                    var collisionObject = entry.CollisionObjects[i];
-                    collisionObject.RemoveObjectFromBulletWorld();
-                }
-                _worldEntryPool.Return(entry);
+                entries[i].Dispose();
             }
-
-            _registeredObjects.RemoveAt(index);
+            entries.Clear();
         }
 
-        private int FindWorldEntry(GameObject go, out WorldEntry entry) {
-            for (int i = 0; i < _registeredObjects.Count; i++) {
-                var o = _registeredObjects[i];
-                if (o.Root == go)
-                {
-                    entry = o;
-                    return i;
-                }
-            }
-            entry = null;
-            return -1;
+        private void RemoveObject(WorldEntry worldEntry)
+        {
+            var isRemoved = _registeredWorldEntries.Remove(worldEntry.Id);
+
+            Assert.IsTrue(isRemoved, "World entry isn't registered anymore");
+
+            _worldEntryPool.Return(worldEntry);
+            _registeredObjects.Remove(worldEntry);
         }
 
-
+        public interface IWorldEntry : IDisposable
+        {
+            PhysicsObject PhysicsObject { get; }
+        }
+        
         [Serializable]
-        private class WorldEntry
+        private class WorldEntry : IWorldEntry
         {
-            [SerializeField] public GameObject Root;
-            public readonly List<MonoBehaviour> PhysicsComponents;
-            public readonly List<BCollisionObject> CollisionObjects;
-            public readonly List<BTypedConstraint> Constraints;
+            [SerializeField] public GameObject _root;
 
-            public WorldEntry()
+            // Real type: MonoBehaviour with IPhysicsComponent
+            public readonly int Id;
+            private PhysicsObject _physicsObject;
+
+            private readonly Action<WorldEntry> _remove;
+
+            public WorldEntry(int id, Action<WorldEntry> remove)
             {
-                Root = null;
-                PhysicsComponents = new List<MonoBehaviour>();
-                CollisionObjects = new List<BCollisionObject>();
-                Constraints = new List<BTypedConstraint>();
+                Id = id;
+                _remove = remove;
+                _physicsObject = null;
+            }
+
+            public void Dispose()
+            {
+                _remove(this);
+                _root = null;
+                _physicsObject = null;
+            }
+
+            public PhysicsObject PhysicsObject
+            {
+                get { return _physicsObject; }
+                set
+                {
+                    _physicsObject = value;
+                    _root = _physicsObject.gameObject;
+                }
             }
         }
 

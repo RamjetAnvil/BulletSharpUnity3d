@@ -2,7 +2,7 @@
 
 namespace BulletUnity
 {
-    public class ObjectPool<T> where T : new()
+    public class ObjectPool<T>
     {
         private readonly int _growthStep;
         private readonly Stack<T> _pool;
@@ -11,29 +11,16 @@ namespace BulletUnity
         {
             _growthStep = capacity;
             _pool = new Stack<T>();
-            GrowPool();
         }
 
         public T Take()
         {
-            if (_pool.Count == 0)
-            {
-                GrowPool();
-            }
             return _pool.Pop();
         }
 
         public void Return(T @object)
         {
             _pool.Push(@object);
-        }
-
-        private void GrowPool()
-        {
-            for (int i = 0; i < _growthStep; i++)
-            {
-                _pool.Push(new T());
-            }
         }
     }
 }

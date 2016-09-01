@@ -9,10 +9,10 @@ public class RamjetExample : MonoBehaviour
     [SerializeField] private RamjetPhysicsWorld _physicsWorld;
     [SerializeField] private string _physicsSceneName;
 
-    private List<GameObject> _physicsObjects;
+    private List<PhysicsObject> _physicsObjects;
 
     void Awake() {
-        _physicsObjects = new List<GameObject>(128);
+        _physicsObjects = new List<PhysicsObject>(128);
     }
 
     private IEnumerator Start() {
@@ -24,7 +24,13 @@ public class RamjetExample : MonoBehaviour
             yield break;
         }
 
-        scene.GetRootGameObjects(_physicsObjects);
-        _physicsWorld.AddObjects(_physicsObjects);
+        var rootObjects = scene.GetRootGameObjects();
+        for (int i = 0; i < rootObjects.Length; i++) {
+            var rootObject = rootObjects[i];
+            rootObject.GetComponentsInChildren(_physicsObjects);
+        }
+
+        var worldEntries = new List<RamjetPhysicsWorld.IWorldEntry>(_physicsObjects.Count);
+        _physicsWorld.AddObjects(_physicsObjects, worldEntries);
     }
 }
