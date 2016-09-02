@@ -68,10 +68,6 @@ namespace BulletUnity
             }
         }
 
-        // TODO If we really want to make this fast we need to decouple the creation of world entries
-        //      from the registration/deregistration. That way we don't do unnecessary GetComponent() calls
-
-        private static readonly List<IPhysicsComponent> PhysicsComponentCache = new List<IPhysicsComponent>();
         public IWorldEntry AddObject(PhysicsObject po)
         {
             for (int i = 0; i < po.CollisionObjects.Count; i++)
@@ -97,7 +93,7 @@ namespace BulletUnity
         }
 
         private static readonly IList<WorldEntry> _groupedEntries = new List<WorldEntry>(128);
-        public void AddObjects(IList<PhysicsObject> objects, IList<IWorldEntry> worldEntries) {
+        public void AddObjects(IList<PhysicsObject> objects, IList<IWorldEntry> result) {
             // Two loops, add collision objects, add constraints
 
             _groupedEntries.Clear();
@@ -136,7 +132,7 @@ namespace BulletUnity
             {
                 var worldEntry = _groupedEntries[i];
                 _registeredWorldEntries[worldEntry.Id] = worldEntry;
-                worldEntries.Add(worldEntry);
+                result.Add(worldEntry);
             }
         }
         
